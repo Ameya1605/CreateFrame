@@ -1,0 +1,18 @@
+# Backend Plan & Status
+
+## DONE
+- [x] FastAPI setup with CORS and Middleware
+- [x] SQLite database integration
+- [x] GitHub OAuth (Login & Callback)
+- [x] Secure token storage (Fernet encryption)
+- [x] Project management endpoints (Create, List)
+- [x] Schema/Entity management
+- [x] API Endpoint definition
+- [x] Prompt template definition
+- [x] "Push to GitHub" feature (creates spec.json)
+- [x] Generators: Prisma Schema & FastAPI boilerplate
+
+## TODO
+- [ ] Add better error handling for GitHub API limits
+- [ ] Support PostgreSQL for production
+- [ ] Add validation for schema fields (types, constraints)
