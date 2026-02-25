@@ -23,10 +23,14 @@ export default function NewProjectWizard() {
     const [currentStep, setCurrentStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [brainstorming, setBrainstorming] = useState(false);
+    const [username, setUsername] = useState('');
 
     React.useEffect(() => {
-        if (typeof window !== 'undefined' && !localStorage.getItem('token')) {
-            router.push('/');
+        if (typeof window !== 'undefined') {
+            if (!localStorage.getItem('token')) {
+                router.push('/');
+            }
+            setUsername(localStorage.getItem('username') || 'you');
         }
     }, [router]);
 
@@ -140,7 +144,7 @@ export default function NewProjectWizard() {
                         <div className="space-y-4">
                             <div className="relative">
                                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-700 text-sm font-bold select-none">
-                                    github.com/{localStorage.getItem('username') || 'you'}/
+                                    github.com/{username}/
                                 </div>
                                 <input
                                     type="text"
@@ -148,7 +152,7 @@ export default function NewProjectWizard() {
                                     className="w-full bg-[#111113] border border-zinc-800 rounded-xl pl-[220px] pr-4 py-4 text-lg font-bold text-white outline-none focus:border-blue-500 transition-colors placeholder:text-zinc-800"
                                     value={repoName}
                                     onChange={e => setRepoName(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                                    style={{ paddingLeft: `${(localStorage.getItem('username')?.length || 3) + 22}ch` }}
+                                    style={{ paddingLeft: `${(username?.length || 3) + 22}ch` }}
                                 />
                             </div>
 
