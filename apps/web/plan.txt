@@ -1,0 +1,23 @@
+# Frontend Plan & Status
+
+## DONE
+- [x] Next.js setup with Dark Mode (Zinc/Blue theme)
+- [x] Landing page with GitHub Login
+- [x] Dashboard with Repo Selector (fetches from user's GitHub)
+- [x] Project Detail View ("The Workplace")
+- [x] Sidebar with Spec Health stats
+- [x] Code Generator modals (Prisma & FastAPI)
+- [x] "Push to GitHub" integration
+- [x] Error handling for expired tokens (Auto-redirect)
+
+## TODO
+- [ ] Add "Delete" functionality for individual specs
+- [ ] User Settings page
+- [ ] Visualize relationships between tables (ERD view)
+- [ ] Configure `vercel.json` and production build optimizations
+- [ ] Setup Vercel Environment Variables (API URL, Client ID)
+
+## Automation & Workflow
+- [ ] Connect/Disconnect branch monitor
+- [ ] PR Status widget: Show if a `specos/proposed` PR is currently open on GitHub
+- [ ] Deployment URL display: Link to the environment if CD is active
