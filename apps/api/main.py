@@ -133,9 +133,33 @@ async def initialize_full_project(req: schemas.ProjectCreate, user: models.User 
     }
     
     # Push basic structure README and spec
-    readme_content = f"# {project.name}\n\nBuilt with SpecOS - AI Architecture First.\n\n## Structure\n- `apps/api`: FastAPI Backend\n- `apps/web`: Next.js Frontend\n"
+    readme_content = f"# {project.name}\n\nBuilt with SpecOS - AI Architecture First.\n"
+    
+    api_main = """from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="SpecOS Generated API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+async def root():
+    return {"message": "API is online"}
+
+# Routers will be injected below
+"""
+    
+    requirements = "fastapi\nuvicorn\npydantic\nsqlalchemy\npsycopg2-binary\npython-dotenv\n"
+    
     await github_utils.push_spec_to_github(token, project.repo_url, json.dumps(spec, indent=2))
     await github_utils.push_file_to_github(token, project.repo_url, "README.md", readme_content)
+    await github_utils.push_file_to_github(token, project.repo_url, "apps/api/main.py", api_main)
+    await github_utils.push_file_to_github(token, project.repo_url, "apps/api/requirements.txt", requirements)
     
     return project
 
@@ -185,14 +209,23 @@ async def commit_project_to_github(project_id: int, user: models.User = Depends(
 
     # 3. Push Server Layer (FastAPI/Express)
     if project.endpoints:
-        api_code = "from fastapi import APIRouter\n\nrouter = APIRouter()\n\n" + "\n\n".join([e.code or f"# Route {e.method} {e.route}" for e in project.endpoints])
-        msg = brain.generate_commit_message("endpoints", "API Endpoints")
-        await github_utils.push_file_to_github(token, project.repo_url, "apps/api/main.py", api_code, msg)
+        for entry in project.endpoints:
+            if not entry.code: continue
+            # Make a safe filename from the route
+            safe_name = entry.route.strip("/").replace("/", "_").replace("-", "_") or "root"
+            path = f"apps/api/routes/{safe_name}.py"
+            msg = brain.generate_commit_message("endpoints", entry.route)
+            await github_utils.push_file_to_github(token, project.repo_url, path, entry.code, msg)
 
     # 4. Push UI Layer (React)
     for comp in project.ui_components:
         if comp.code:
-            path = f"apps/web/app/{comp.name.lower().replace(' ', '-')}/page.tsx" if comp.type == 'page' else f"apps/web/components/{comp.name.replace(' ', '')}.tsx"
+            # Better pathing: apps/web/app for pages, apps/web/components for components
+            if comp.type == 'page':
+                path = f"apps/web/app/{comp.name.lower().replace(' ', '-')}/page.tsx"
+            else:
+                path = f"apps/web/components/{comp.name.replace(' ', '')}.tsx"
+                
             msg = brain.generate_commit_message("ui-components", comp.name)
             await github_utils.push_file_to_github(token, project.repo_url, path, comp.code, msg)
 

@@ -11,3 +11,4 @@ httpx
 python-dotenv
 cryptography
 cors
+groq
