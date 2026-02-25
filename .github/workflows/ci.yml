@@ -1,0 +1,37 @@
+name: SpecOS CI
+
+on:
+  push:
+    branches: [ master, design/dark-tech-ui ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: cd apps/web && npm install
+      - name: Build frontend
+        run: cd apps/web && npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://placeholder-url.com
+
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          cd apps/api
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Lint with flake8
+        run: |
+          pip install flake8
+          flake8 apps/api --count --select=E9,F63,F7,F82 --show-source --statistics
