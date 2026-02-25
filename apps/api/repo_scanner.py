@@ -1,6 +1,7 @@
 import httpx
 import base64
 import re
+import asyncio
 from typing import List, Dict, Any, Optional
 
 
@@ -142,8 +143,9 @@ def parse_fastapi_routes(content: str, file_path: str = "", all_file_contents: O
                     break
 
     # Now extract route decorators
+    # Supports @app.get("/"), @router.post(''), app.add_api_route("/", ...), etc.
     route_pattern = re.compile(
-        r'@(\w+)\.(get|post|put|delete|patch)\s*\(\s*["\']([^"\']*)["\']',
+        r'(@\w+\.|(?:\w+\.)?add_api_route\s*\(\s*)(get|post|put|delete|patch|api_route)?\s*?["\']([^"\']*)["\']',
         re.MULTILINE | re.IGNORECASE
     )
     for match in route_pattern.finditer(content):
@@ -176,13 +178,16 @@ def parse_fastapi_routes(content: str, file_path: str = "", all_file_contents: O
 def parse_express_routes(content: str) -> List[Dict]:
     """Extract routes from Express.js files."""
     routes = []
+    # Use * to allow empty strings in routes, e.g. app.get('')
     route_pattern = re.compile(
-        r'(?:router|app)\.(get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']',
+        r'(?:router|app)\.(get|post|put|delete|patch|use)\s*\(\s*["\']([^"\']*)["\']',
         re.MULTILINE | re.IGNORECASE
     )
     for match in route_pattern.finditer(content):
         method = match.group(1).upper()
         route = match.group(2)
+        if not route or route == "":
+            route = "/"
         routes.append({"method": method, "route": route})
     return routes
 
@@ -223,14 +228,16 @@ async def scan_repo(token: str, repo_full_name: str) -> Dict[str, Any]:
     file_paths = [f["path"] for f in all_files]
 
     # First pass: fetch all relevant file contents (needed for prefix resolution)
-    relevant_files: Dict[str, str] = {}
+    relevant_file_tasks = []
+    relevant_paths = []
     for file_info in all_files:
         path = file_info["path"]
-        if not is_relevant_file(path):
-            continue
-        content = await fetch_file_content(token, owner, repo, path)
-        if content:
-            relevant_files[path] = content
+        if is_relevant_file(path):
+            relevant_paths.append(path)
+            relevant_file_tasks.append(fetch_file_content(token, owner, repo, path))
+    
+    contents = await asyncio.gather(*relevant_file_tasks)
+    relevant_files = {path: content for path, content in zip(relevant_paths, contents) if content}
 
     # Second pass: parse each file
     for path, content in relevant_files.items():
