@@ -204,30 +204,59 @@ def summarize_project_progress(commits: List[str], features: List[str]) -> Dict[
         log.error("[progress] error: %s", e)
         return {"summary": "Unable to synthesize commits.", "feature_status": {}}
 
-def generate_code(item_type: str, item_name: str, spec: str) -> str:
+ENGINEERING_STANDARDS = """
+You are a Staff Technical Architect at a high-growth startup. Your goal is to generate 
+PRODUCTION-READY, MODULAR, and HIGH-PERFORMANCE code. 
+
+### STANDARDS:
+1. **Modularity**: Never put everything in one file. Follow standard patterns (e.g., FastAPI routers, separate React components).
+2. **Type Safety**: Use Pydantic v2 for Python and strict TypeScript for React.
+3. **API Design**: Follow REST/JSON best practices. Use appropriate HTTP status codes.
+4. **UI/UX**: Use Tailwind CSS with a focus on "SaaS-premium" aesthetics (zinc/slate palettes, subtle borders, rounded-xl). 
+5. **Database**: Write clean Prisma schemas with proper relationships and indices.
+6. **No Fluff**: Do not include introductory text or markdown backticks unless specifically asked. Output CODE ONLY.
+"""
+
+def generate_code(item_type: str, item_name: str, spec_json: str) -> str:
     """
     Generates code (FastAPI, Prisma, or React) based on the item type.
     """
     client = get_client()
     if not client: return "// AI unavailable"
 
+    spec = json.loads(spec_json)
+    project_context = f"Project: {spec.get('project', {}).get('name', 'App')}"
+
     prompts = {
-        "schemas": f"You are a Senior Data Architect. Generate a clean, minimal Prisma model for '{item_name}' based on this spec: {spec}. Use PascalCase for model names. Do not add comments. Output raw prisma schema only.",
-        "endpoints": f"You are a Senior Backend Engineer. Generate a performance-optimized FastAPI route for '{item_name}' based on: {spec}. Use Pydantic v2. Keep it minimal and clean. No docstrings or comments. Output raw python only.",
-        "ui-components": f"You are a Senior Frontend Engineer. Generate a sleek React component using Tailwind and Lucide for '{item_name}' based on: {spec}. Focus on premium aesthetics and minimal code. Output raw tsx only."
+        "schemas": f"Generate a clean, modular Prisma model for '{item_name}'. Context: {project_context}. Relationships: Ensure it links correctly to other models in the spec: {spec_json}. Output raw prisma model only.",
+        "endpoints": f"Generate a modular FastAPI router for '{item_name}'. Standard: Pydantic v2, clear separation from main app. Logic: Implement common CRUD operations as comments. Context: {spec_json}. Output raw python only.",
+        "ui-components": f"Generate a premium React component using Tailwind and Lucide for '{item_name}'. Vibe: Clean, modern SaaS. Functionality: Mock API calls using standard 'fetch' patterns. Context: {spec_json}. Output raw tsx only."
     }
 
     try:
         res = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompts.get(item_type, "Generate code for " + item_name)}],
+            messages=[
+                {"role": "system", "content": ENGINEERING_STANDARDS},
+                {"role": "user", "content": prompts.get(item_type, "Generate code for " + item_name)}
+            ],
             model="llama-3.3-70b-versatile",
             temperature=0.1
         )
         content = res.choices[0].message.content
-        log.info("[generate-code: %s] raw response:\n%s", item_type, content)
+        log.info("[generate-code: %s] raw response length: %d", item_type, len(content))
+        
+        # Robust cleanup
         if "```" in content:
-            content = content.split("```")[1].split("```", 1)[0].replace("tsx", "").replace("python", "").strip()
-        return content
+            # Extract content between backticks
+            parts = content.split("```")
+            if len(parts) >= 3:
+                content = parts[1]
+                # Strip language prefix if present
+                for lang in ["python", "tsx", "jsx", "javascript", "prisma", "sql", "json"]:
+                    if content.lower().startswith(lang):
+                        content = content[len(lang):].strip()
+                        break
+        return content.strip()
     except Exception as e:
         log.error("[generate-code] error: %s", e)
         return f"// Generation Error: {str(e)}"
@@ -240,5 +269,5 @@ def generate_commit_message(item_type: str, item_name: str) -> str:
         "ui-components": "feat(ui)"
     }
     prefix = prefixes.get(item_type, "chore")
-    return f"{prefix}: implement {item_name.lower()}"
+    return f"{prefix}: bootstrap {item_name.lower()} architecture"
 
