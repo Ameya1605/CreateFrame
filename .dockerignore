@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+apps/web
+apps/api/venv
+apps/api/__pycache__
+apps/api/sql_app.db
+.env
+.env.local
+.next
