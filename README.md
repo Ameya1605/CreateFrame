@@ -1,3 +1,12 @@
+---
+title: SpecOS API
+emoji: 🧭
+colorFrom: blue
+colorTo: zinc
+sdk: docker
+pinned: false
+---
+
 # SpecOS
 
 SpecOS is a control plane for your technical specs. It helps you define your database schema, API endpoints, and AI prompts in one place, then syncs them directly to your GitHub repository.
