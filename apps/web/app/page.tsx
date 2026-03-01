@@ -5,7 +5,7 @@ import { Github, Cpu, ShieldCheck, Zap, Globe } from 'lucide-react';
 export default function Home() {
   const handleLogin = () => {
     const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
-    const redirectUri = encodeURIComponent('http://localhost:3000/auth/callback');
+    const redirectUri = encodeURIComponent(`${window.location.origin}/auth/callback`);
     window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=repo,user,admin:repo_hook`;
   };
 
