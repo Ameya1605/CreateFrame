@@ -8,7 +8,8 @@ def migrate():
     migrations = [
         ('database_schemas', 'code', 'TEXT'),
         ('api_endpoints', 'code', 'TEXT'),
-        ('ui_components', 'code', 'TEXT')
+        ('ui_components', 'code', 'TEXT'),
+        ('projects', 'project_type', 'TEXT'),
     ]
     
     for table, column, col_type in migrations:
@@ -21,6 +22,23 @@ def migrate():
                 print(f"Column '{column}' already exists in '{table}'. skipping.")
             else:
                 print(f"Error adding column to {table}: {e}")
+    
+    # Create new tables
+    try:
+        print("Creating 'dismissed_recommendations' table...")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dismissed_recommendations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                recommendation_id TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id),
+                UNIQUE(project_id, recommendation_id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS ix_dismissed_rec_id ON dismissed_recommendations(recommendation_id)")
+        print("Done.")
+    except Exception as e:
+        print(f"Error creating dismissed_recommendations: {e}")
     
     conn.commit()
     conn.close()

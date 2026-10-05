@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 
-import models, schemas, database, auth, github_utils, generator, repo_scanner, brain
+import models, schemas, database, auth, github_utils, generator, repo_scanner, brain, recommender
 from database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
@@ -475,6 +475,152 @@ def generate_component_code(req: schemas.GenerateComponentRequest, user: models.
     
     code = brain.generate_react_component(req.component_name, req.component_type, context)
     return {"code": code}
+
+# ─── Recommendation Engine Endpoints ──────────────────────────────────────────
+
+@app.get("/projects/{project_id}/recommendations")
+async def get_project_recommendations(project_id: int, user: models.User = Depends(get_user_from_header), db: Session = Depends(get_db)):
+    project = db.query(models.Project).filter(models.Project.id == project_id, models.Project.owner_id == user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get dismissed recommendation IDs
+    dismissed = db.query(models.DismissedRecommendation).filter(
+        models.DismissedRecommendation.project_id == project_id
+    ).all()
+    dismissed_ids = [d.recommendation_id for d in dismissed]
+    
+    result = recommender.get_recommendations(
+        project=project,
+        features=project.features,
+        schemas=project.schemas,
+        endpoints=project.endpoints,
+        ui_components=project.ui_components,
+        dismissed_ids=dismissed_ids,
+    )
+    
+    # Auto-update project_type if newly classified
+    detected_type = result.get("project_type", "unknown")
+    if detected_type != "unknown" and project.project_type != detected_type:
+        project.project_type = detected_type
+        db.commit()
+    
+    return result
+
+
+@app.post("/projects/{project_id}/recommendations/{rec_id}/apply")
+async def apply_recommendation(project_id: int, rec_id: str, user: models.User = Depends(get_user_from_header), db: Session = Depends(get_db)):
+    project = db.query(models.Project).filter(models.Project.id == project_id, models.Project.owner_id == user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get the full recommendation to find its action
+    dismissed = db.query(models.DismissedRecommendation).filter(
+        models.DismissedRecommendation.project_id == project_id
+    ).all()
+    dismissed_ids = [d.recommendation_id for d in dismissed]
+    
+    result = recommender.get_recommendations(
+        project=project,
+        features=project.features,
+        schemas=project.schemas,
+        endpoints=project.endpoints,
+        ui_components=project.ui_components,
+        dismissed_ids=dismissed_ids,
+    )
+    
+    rec = next((r for r in result.get("all", []) if r["id"] == rec_id), None)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found or already dismissed")
+    
+    action = rec.get("action", {})
+    action_type = action.get("type", "")
+    payload = action.get("payload", {})
+    
+    try:
+        if action_type == "add_endpoint":
+            endpoint = models.ApiEndpoint(
+                project_id=project_id,
+                method=payload.get("method", "GET"),
+                route=payload.get("route", "/"),
+                request_schema=payload.get("request_schema", {}),
+                response_schema=payload.get("response_schema", {}),
+            )
+            db.add(endpoint)
+        elif action_type == "add_schema":
+            schema = models.DatabaseSchema(
+                project_id=project_id,
+                table_name=payload.get("table_name", "unnamed"),
+                fields=payload.get("fields", []),
+            )
+            db.add(schema)
+        elif action_type == "add_fields":
+            table_name = payload.get("table_name")
+            new_fields = payload.get("fields", [])
+            existing = db.query(models.DatabaseSchema).filter(
+                models.DatabaseSchema.project_id == project_id,
+                models.DatabaseSchema.table_name == table_name
+            ).first()
+            if existing:
+                current_fields = existing.fields or []
+                existing_names = {f.get("name") for f in current_fields if isinstance(f, dict)}
+                for nf in new_fields:
+                    if nf.get("name") not in existing_names:
+                        current_fields.append(nf)
+                existing.fields = current_fields
+        elif action_type == "add_feature":
+            feature = models.Feature(
+                project_id=project_id,
+                name=payload.get("name", "Unnamed"),
+                status=payload.get("status", "planned"),
+            )
+            db.add(feature)
+        elif action_type == "add_ui_component":
+            comp = models.UIComponent(
+                project_id=project_id,
+                name=payload.get("name", "Unnamed"),
+                type=payload.get("type", "component"),
+            )
+            db.add(comp)
+        elif action_type in ("navigate", "info"):
+            pass  # UI-only actions, no DB change needed
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown action type: {action_type}")
+        
+        db.commit()
+        return {"ok": True, "action_type": action_type, "applied": rec["title"]}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to apply: {str(e)}")
+
+
+@app.post("/projects/{project_id}/recommendations/{rec_id}/dismiss")
+async def dismiss_recommendation(project_id: int, rec_id: str, user: models.User = Depends(get_user_from_header), db: Session = Depends(get_db)):
+    project = db.query(models.Project).filter(models.Project.id == project_id, models.Project.owner_id == user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    existing = db.query(models.DismissedRecommendation).filter(
+        models.DismissedRecommendation.project_id == project_id,
+        models.DismissedRecommendation.recommendation_id == rec_id
+    ).first()
+    
+    if not existing:
+        dismissed = models.DismissedRecommendation(
+            project_id=project_id,
+            recommendation_id=rec_id,
+        )
+        db.add(dismissed)
+        db.commit()
+    
+    return {"ok": True, "dismissed": rec_id}
+
+
+@app.get("/recommendations/field-hints")
+async def get_field_hints(table_name: str, user: models.User = Depends(get_user_from_header)):
+    hints = recommender.get_field_hints(table_name)
+    return {"table_name": table_name, "suggested_fields": hints}
+
 
 if __name__ == "__main__":
     import uvicorn

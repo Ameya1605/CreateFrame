@@ -20,6 +20,7 @@ class Project(Base):
     repo_url = Column(String)
     owner_id = Column(Integer, ForeignKey("users.id"))
     is_ai_enabled = Column(Integer, default=1) # AI enabled by default
+    project_type = Column(String, nullable=True)  # saas, ecommerce, social, internal_tool, api_only
 
     owner = relationship("User", back_populates="projects")
     features = relationship("Feature", back_populates="project", cascade="all, delete-orphan")
@@ -27,6 +28,7 @@ class Project(Base):
     endpoints = relationship("ApiEndpoint", back_populates="project", cascade="all, delete-orphan")
     ui_components = relationship("UIComponent", back_populates="project", cascade="all, delete-orphan")
     prompts = relationship("PromptTemplate", back_populates="project", cascade="all, delete-orphan")
+    dismissed_recommendations = relationship("DismissedRecommendation", back_populates="project", cascade="all, delete-orphan")
 
     __table_args__ = (UniqueConstraint('owner_id', 'name', name='_owner_project_uc'),)
 
@@ -94,3 +96,14 @@ class PromptTemplate(Base):
     project = relationship("Project", back_populates="prompts")
 
     __table_args__ = (UniqueConstraint('project_id', 'name', name='_project_prompt_uc'),)
+
+class DismissedRecommendation(Base):
+    __tablename__ = "dismissed_recommendations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"))
+    recommendation_id = Column(String, index=True)  # e.g., hash ID from recommender
+
+    project = relationship("Project", back_populates="dismissed_recommendations")
+
+    __table_args__ = (UniqueConstraint('project_id', 'recommendation_id', name='_project_dismissed_uc'),)

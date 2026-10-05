@@ -68,3 +68,30 @@ class SpecPushRequest(BaseModel):
 
 class BrainstormRequest(BaseModel):
     description: str
+
+class RecommendationAction(BaseModel):
+    type: str  # add_endpoint, add_schema, add_fields, add_feature, add_ui_component, navigate, info
+    payload: Dict[str, Any]
+
+class RecommendationItem(BaseModel):
+    id: str
+    rule_id: str
+    layer: str
+    type: str
+    severity: str
+    title: str
+    description: str
+    action: RecommendationAction
+    confidence: float
+
+class RecommendationsResponse(BaseModel):
+    project_type: str
+    completeness_scores: Dict[str, float]
+    total_count: int
+    critical_count: int
+    recommendations: Dict[str, List[RecommendationItem]]
+    all: List[RecommendationItem]
+
+class FieldHintRequest(BaseModel):
+    table_name: str
+

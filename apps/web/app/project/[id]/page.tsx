@@ -3,12 +3,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { fetchRecommendations, applyRecommendation, dismissRecommendation } from '@/lib/api';
 import {
     ArrowLeft, Database, Globe, Loader2, Code2,
     X, LayoutPanelTop, Flag, Activity, Sparkles,
     ChevronRight, ChevronDown, File, Folder, FolderOpen,
     Send, Trash2, Plus, Check, AlertCircle, Inbox,
-    Zap, Play, GitBranch
+    Zap, Play, GitBranch, Lightbulb, Eye, EyeOff,
+    Brain, ShieldAlert, TrendingUp, Info, Copy, CheckCheck
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -124,7 +126,7 @@ function deriveFilePlan(
     return plan;
 }
 
-// ─── File Tree ────────────────────────────────────────────────────────────────
+// ─── File Tree Component ──────────────────────────────────────────────────────
 
 function TreeItem({ node, depth = 0, onSelect, selectedPath }: {
     node: TreeNode; depth?: number;
@@ -138,11 +140,11 @@ function TreeItem({ node, depth = 0, onSelect, selectedPath }: {
             <div>
                 <button
                     onClick={() => setOpen(v => !v)}
-                    className="w-full flex items-center gap-1.5 px-2 py-0.5 rounded text-zinc-600 hover:text-zinc-400 transition-colors"
-                    style={{ paddingLeft: `${6 + depth * 12}px` }}
+                    className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-[var(--surface-2)] transition-colors text-left font-mono"
+                    style={{ paddingLeft: `${8 + depth * 14}px` }}
                 >
-                    {open ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-                    {open ? <FolderOpen size={11} className="text-blue-400/60 shrink-0" /> : <Folder size={11} className="text-zinc-700 shrink-0" />}
+                    {open ? <ChevronDown size={11} className="text-zinc-500" /> : <ChevronRight size={11} className="text-zinc-500" />}
+                    {open ? <FolderOpen size={12} className="text-blue-400 shrink-0" /> : <Folder size={12} className="text-zinc-500 shrink-0" />}
                     <span className="text-[11px] truncate">{node.name}</span>
                 </button>
                 {open && node.children?.map(c => (
@@ -155,54 +157,87 @@ function TreeItem({ node, depth = 0, onSelect, selectedPath }: {
     return (
         <button
             onClick={() => onSelect(node)}
-            className={`w-full flex items-center gap-1.5 py-0.5 rounded text-left transition-colors ${isSelected ? 'bg-blue-600/20 text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
-            style={{ paddingLeft: `${6 + depth * 12}px` }}
+            className={`w-full flex items-center gap-1.5 py-1 rounded text-left transition-colors font-mono ${
+                isSelected
+                    ? 'bg-blue-600/20 text-blue-300 font-semibold border-l-2 border-blue-500'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-[var(--surface-2)]'
+            }`}
+            style={{ paddingLeft: `${8 + depth * 14}px` }}
         >
-            <File size={10} className={node.hasCode ? 'text-yellow-400 shrink-0' : 'text-zinc-800 shrink-0'} />
+            <File size={11} className={node.hasCode ? 'text-amber-400 shrink-0' : 'text-zinc-600 shrink-0'} />
             <span className="text-[11px] truncate flex-1">{node.name}</span>
-            {node.hasCode && <span className="w-1 h-1 rounded-full bg-yellow-400 mr-1 shrink-0" />}
+            {node.hasCode && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 shrink-0" />}
         </button>
     );
 }
 
-// ─── Code Viewer ─────────────────────────────────────────────────────────────
+// ─── Code Viewer Component ────────────────────────────────────────────────────
 
 function CodeViewer({ title, code, onChange, onClose }: {
     title: string; code: string;
     onChange: (v: string) => void; onClose: () => void;
 }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(code);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
     return (
-        <div className="flex flex-col h-full bg-[#0a0a0c] border-l border-zinc-800/60">
-            <div className="h-9 flex items-center justify-between px-3 border-b border-zinc-800/60 bg-[#111113] shrink-0">
+        <div className="flex flex-col h-full bg-[var(--surface-0)] border-l border-[var(--border-subtle)]">
+            {/* Header */}
+            <div className="h-10 flex items-center justify-between px-3 border-b border-[var(--border-subtle)] bg-[var(--surface-1)] shrink-0">
                 <div className="flex items-center gap-2">
-                    <Code2 size={11} className="text-blue-400" />
-                    <span className="text-[11px] text-zinc-400 font-mono">{title}</span>
+                    <Code2 size={13} className="text-blue-400" />
+                    <span className="text-xs font-mono font-medium text-zinc-200">{title}</span>
                 </div>
-                <button onClick={onClose} className="p-1 text-zinc-600 hover:text-zinc-300"><X size={12} /></button>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={handleCopy}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-zinc-400 hover:text-white hover:bg-[var(--surface-2)] transition-all"
+                        title="Copy code"
+                    >
+                        {copied ? <CheckCheck size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                        <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+                    </button>
+                    <button
+                        onClick={onClose}
+                        className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-[var(--surface-2)] transition-all"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
             </div>
-            <div className="flex flex-1 overflow-hidden font-mono">
-                <div className="w-9 bg-[#111113] border-r border-zinc-800/40 flex flex-col items-end pt-3 pr-2 select-none overflow-hidden shrink-0">
+
+            {/* Code Body with Line Numbers */}
+            <div className="flex flex-1 overflow-hidden font-mono text-[11px] leading-relaxed">
+                <div className="w-10 bg-[var(--surface-1)] border-r border-[var(--border-subtle)] flex flex-col items-end pt-3 pr-2 select-none overflow-hidden shrink-0 text-zinc-600">
                     {(code || '').split('\n').map((_, i) => (
-                        <div key={i} className="text-[9px] text-zinc-800 leading-5">{i + 1}</div>
+                        <div key={i} className="text-[10px] leading-5">{i + 1}</div>
                     ))}
                 </div>
                 <textarea
-                    className="flex-1 bg-transparent p-3 text-blue-200 resize-none outline-none text-[11px] leading-5"
+                    className="flex-1 bg-transparent p-3 text-blue-100/90 resize-none outline-none leading-5 selection:bg-blue-600/30 font-mono"
                     value={code}
                     onChange={e => onChange(e.target.value)}
                     spellCheck={false}
-                    placeholder="// Code appears here after generation"
+                    placeholder="// Generated source code will appear here"
                 />
             </div>
         </div>
     );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main Project Detail ──────────────────────────────────────────────────────
 
-const METHOD_COLOR: Record<string, string> = {
-    GET: 'text-emerald-400', POST: 'text-blue-400',
-    PUT: 'text-yellow-400', PATCH: 'text-orange-400', DELETE: 'text-red-400'
+const METHOD_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+    GET: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
+    POST: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
+    PUT: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+    PATCH: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
+    DELETE: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' }
 };
 
 export default function ProjectDetail() {
@@ -210,7 +245,7 @@ export default function ProjectDetail() {
     const router = useRouter();
 
     const [project, setProject] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState('plan');
+    const [activeTab, setActiveTab] = useState<'plan' | 'database' | 'api' | 'ui' | 'overview' | 'insights'>('plan');
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
@@ -226,9 +261,10 @@ export default function ProjectDetail() {
     const [implementations, setImplementations] = useState<Record<number, FeatureImpl>>({});
     const [openFile, setOpenFile] = useState<GeneratedFile | null>(null);
 
-    // Drafts tray
+    // Drafts tray & modal
     const [showDraftsTray, setShowDraftsTray] = useState(false);
     const [pushingAll, setPushingAll] = useState(false);
+    const [discardModalOpen, setDiscardModalOpen] = useState(false);
 
     // File tree
     const [treeVisible, setTreeVisible] = useState(true);
@@ -242,6 +278,11 @@ export default function ProjectDetail() {
     const [newUI, setNewUI] = useState('');
 
     const [genLogs, setGenLogs] = useState<string[]>([]);
+
+    // Recommendations
+    const [recommendations, setRecommendations] = useState<any>(null);
+    const [recsLoading, setRecsLoading] = useState(false);
+    const [applyingRecId, setApplyingRecId] = useState<string | null>(null);
 
     const showToast = useCallback((msg: string, ok = true) => {
         setToast({ msg, ok });
@@ -268,9 +309,50 @@ export default function ProjectDetail() {
             setEndpoints(endRes.data);
             setUiComponents(uiRes.data);
         } catch {
-            showToast('Failed to load project', false);
+            showToast('Failed to load project details', false);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Recommendations
+    const loadRecommendations = async () => {
+        if (!id) return;
+        setRecsLoading(true);
+        try {
+            const data = await fetchRecommendations(Number(id));
+            setRecommendations(data);
+        } catch {
+            // non-critical
+        } finally {
+            setRecsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!loading && project) loadRecommendations();
+    }, [loading, project?.id]);
+
+    const handleApplyRec = async (recId: string) => {
+        setApplyingRecId(recId);
+        try {
+            await applyRecommendation(Number(id), recId);
+            showToast('Recommendation applied successfully!');
+            await fetchProjectData();
+        } catch {
+            showToast('Failed to apply recommendation', false);
+        } finally {
+            setApplyingRecId(null);
+        }
+    };
+
+    const handleDismissRec = async (recId: string) => {
+        try {
+            await dismissRecommendation(Number(id), recId);
+            await loadRecommendations();
+            showToast('Recommendation dismissed');
+        } catch {
+            showToast('Failed to dismiss', false);
         }
     };
 
@@ -281,20 +363,20 @@ export default function ProjectDetail() {
         setFilePlan(plan);
     };
 
-    // Implement: generate all files for this feature
+    // Implement feature: generate code for plan
     const implementFeature = async (feature: any) => {
         const fid = feature.id;
         setImplementations(prev => ({
             ...prev,
             [fid]: { featureId: fid, files: [], implementing: true, done: false }
         }));
-        setGenLogs([`> Bootstrapping workspace for "${feature.name}"...`]);
+        setGenLogs([`> Initializing code generator for "${feature.name}"...`]);
 
         const plan = deriveFilePlan(feature, schemas, endpoints, uiComponents);
         const generated: GeneratedFile[] = [];
 
         for (const p of plan) {
-            setGenLogs(prev => [...prev.slice(-10), `> Generating ${p.fileName}...`]);
+            setGenLogs(prev => [...prev.slice(-10), `> Synthesizing ${p.fileName}...`]);
             try {
                 const res = await api.post('/generate-code', {
                     item_type: p.type,
@@ -309,7 +391,7 @@ export default function ProjectDetail() {
                     code: res.data.code || '',
                     committed: false
                 });
-                setGenLogs(prev => [...prev.slice(-10), `  ✓ Built ${p.fileName}`]);
+                setGenLogs(prev => [...prev.slice(-10), `  ✓ Generated ${p.fileName}`]);
             } catch {
                 generated.push({
                     type: p.type,
@@ -327,13 +409,13 @@ export default function ProjectDetail() {
             ...prev,
             [fid]: { featureId: fid, files: generated, implementing: false, done: true }
         }));
-        setGenLogs(prev => [...prev.slice(-10), `> Completed implementation.`]);
+        setGenLogs(prev => [...prev.slice(-10), `> Completed generating all files.`]);
 
         if (generated.length > 0) setOpenFile(generated[0]);
         showToast(`Generated ${generated.length} file${generated.length !== 1 ? 's' : ''} for "${feature.name}"`);
     };
 
-    // Push all generated files for a feature to GitHub
+    // Push feature files to GitHub
     const pushFeature = async (feature: any) => {
         setPushingAll(true);
         try {
@@ -345,15 +427,27 @@ export default function ProjectDetail() {
                     files: prev[feature.id]?.files.map(f => ({ ...f, committed: true })) || []
                 }
             }));
-            showToast(`"${feature.name}" pushed to GitHub`);
+            showToast(`"${feature.name}" committed and pushed to GitHub!`);
         } catch {
-            showToast('Push failed', false);
+            showToast('Push failed. Please check repository permissions.', false);
         } finally {
             setPushingAll(false);
         }
     };
 
-    // Count all drafts across all features
+    const confirmDiscard = () => {
+        if (!selectedFeature) return;
+        setImplementations(prev => {
+            const next = { ...prev };
+            delete next[selectedFeature.id];
+            return next;
+        });
+        setOpenFile(null);
+        setDiscardModalOpen(false);
+        showToast('Generated drafts discarded');
+    };
+
+    // Count all drafts
     const allDraftFiles = Object.values(implementations)
         .flatMap(impl => impl.files.filter(f => !f.committed));
 
@@ -364,22 +458,27 @@ export default function ProjectDetail() {
             if (type === 'schemas') setSchemas(s => [...s, res.data]);
             if (type === 'endpoints') setEndpoints(e => [...e, res.data]);
             if (type === 'ui-components') setUiComponents(u => [...u, res.data]);
-        } catch { showToast('Failed to add', false); }
+            showToast('Item added to spec');
+        } catch { showToast('Failed to add item', false); }
     };
 
     const deleteItem = async (type: string, itemId: number) => {
         try {
             await api.delete(`/${type}/${itemId}`);
-            if (type === 'features') { setFeatures(f => f.filter(i => i.id !== itemId)); if (selectedFeature?.id === itemId) setSelectedFeature(null); }
+            if (type === 'features') {
+                setFeatures(f => f.filter(i => i.id !== itemId));
+                if (selectedFeature?.id === itemId) setSelectedFeature(null);
+            }
             if (type === 'schemas') setSchemas(s => s.filter(i => i.id !== itemId));
             if (type === 'endpoints') setEndpoints(e => e.filter(i => i.id !== itemId));
             if (type === 'ui-components') setUiComponents(u => u.filter(i => i.id !== itemId));
+            showToast('Item deleted');
         } catch { showToast('Delete failed', false); }
     };
 
-    // Build file tree from all generated implementations
+    // Build file tree
     const buildTree = (): TreeNode[] => {
-        const repoName = project?.repo_url?.split('/').pop() || 'repo';
+        const repoName = project?.repo_url?.split('/').pop() || project?.name || 'repository';
         const allFiles = Object.values(implementations).flatMap(i => i.files);
 
         const dbFiles = allFiles.filter(f => f.type === 'schemas');
@@ -413,94 +512,147 @@ export default function ProjectDetail() {
         if (match) setOpenFile(match);
     };
 
-    const NavItem = ({ tabId, icon: Icon, label, color }: any) => (
-        <button
-            onClick={() => setActiveTab(tabId)}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all ${activeTab === tabId ? 'bg-zinc-800/60 text-white' : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/30'}`}
-        >
-            <Icon size={14} className={activeTab === tabId ? color : ''} />
-            <span className="text-xs font-medium">{label}</span>
-        </button>
-    );
+    const NavItem = ({ tabId, icon: Icon, label, color }: any) => {
+        const isActive = activeTab === tabId;
+        return (
+            <button
+                onClick={() => setActiveTab(tabId)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all ${
+                    isActive
+                        ? 'bg-[var(--surface-2)] text-white shadow-sm font-semibold'
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-[var(--surface-2)]/60'
+                }`}
+            >
+                <div className="flex items-center gap-2.5">
+                    <Icon size={14} className={isActive ? color : 'text-zinc-500'} />
+                    <span className="text-xs">{label}</span>
+                </div>
+                {tabId === 'insights' && recommendations && recommendations.critical_count > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                )}
+            </button>
+        );
+    };
 
-    if (loading) return (
-        <div className="h-screen bg-[#0d0d0f] flex items-center justify-center">
-            <Loader2 className="animate-spin text-blue-500" size={24} />
-        </div>
-    );
+    if (loading) {
+        return (
+            <div className="h-screen bg-[var(--surface-0)] flex flex-col items-center justify-center gap-3">
+                <Loader2 className="animate-spin text-blue-500" size={28} />
+                <p className="text-xs text-zinc-400">Loading project architecture...</p>
+            </div>
+        );
+    }
 
     const impl = selectedFeature ? implementations[selectedFeature.id] : null;
-    const implementedFileIds = new Set(
-        Object.values(implementations).flatMap(i => i.files.map(f => f.filePath))
-    );
 
     return (
-        <div className="h-screen bg-[#0d0d0f] text-zinc-100 font-mono flex flex-col overflow-hidden">
+        <div className="h-screen bg-[var(--surface-0)] text-zinc-100 flex flex-col overflow-hidden antialiased">
 
-            {/* Title bar */}
-            <div className="h-11 bg-[#111113] border-b border-zinc-800/60 flex items-center justify-between px-4 shrink-0">
-                <div className="flex items-center gap-2">
-                    <button onClick={() => router.push('/dashboard')} className="text-zinc-600 hover:text-zinc-300 transition-colors">
-                        <ArrowLeft size={14} />
+            {/* Top Navigation Bar */}
+            <div className="h-14 bg-[var(--surface-1)] border-b border-[var(--border-subtle)] flex items-center justify-between px-5 shrink-0 z-30">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => router.push('/dashboard')}
+                        className="flex items-center gap-1.5 text-zinc-400 hover:text-white text-xs font-medium px-2 py-1 rounded-lg hover:bg-[var(--surface-2)] transition-all"
+                    >
+                        <ArrowLeft size={14} /> Dashboard
                     </button>
-                    <span className="text-zinc-700 text-xs">/</span>
-                    <span className="text-xs text-zinc-400">{project?.name}</span>
+                    <span className="text-zinc-700">/</span>
+                    <span className="text-xs font-semibold text-zinc-200">{project?.name}</span>
+
                     {selectedFeature && activeTab === 'plan' && (
                         <>
-                            <span className="text-zinc-700 text-xs">/</span>
-                            <span className="text-xs text-yellow-400">{selectedFeature.name}</span>
+                            <span className="text-zinc-700">/</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                                {selectedFeature.name}
+                            </span>
                         </>
                     )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                     <button
                         onClick={() => setShowDraftsTray(v => !v)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${allDraftFiles.length > 0 ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400' : 'border-zinc-800 text-zinc-600 hover:text-zinc-400'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                            allDraftFiles.length > 0
+                                ? 'border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                                : 'border-[var(--border-subtle)] text-zinc-400 hover:text-zinc-200 hover:bg-[var(--surface-2)]'
+                        }`}
                     >
-                        <Inbox size={12} />
-                        {allDraftFiles.length} draft{allDraftFiles.length !== 1 ? 's' : ''}
+                        <Inbox size={13} />
+                        <span>{allDraftFiles.length} draft{allDraftFiles.length !== 1 ? 's' : ''}</span>
                     </button>
+
                     <button
                         onClick={() => selectedFeature && pushFeature(selectedFeature)}
                         disabled={!selectedFeature || !impl?.done || pushingAll}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white text-xs font-bold rounded-lg transition-all"
+                        className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-600/20 transition-all hover:scale-[1.01]"
                     >
-                        {pushingAll ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                        Push
+                        {pushingAll ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                        <span>Commit & Push</span>
                     </button>
                 </div>
             </div>
 
+            {/* Main Application Body */}
             <div className="flex flex-1 overflow-hidden">
 
-                {/* Left nav */}
-                <div className="w-44 bg-[#111113] border-r border-zinc-800/60 flex flex-col shrink-0 py-3 px-2">
-                    <p className="text-[9px] uppercase tracking-widest text-zinc-700 font-bold px-3 py-1 mb-1">Layers</p>
-                    <NavItem tabId="plan" icon={Flag} label="Features" color="text-yellow-400" />
-                    <NavItem tabId="database" icon={Database} label="Data" color="text-blue-400" />
-                    <NavItem tabId="api" icon={Globe} label="API" color="text-purple-400" />
-                    <NavItem tabId="ui" icon={LayoutPanelTop} label="UI" color="text-pink-400" />
-                    <div className="my-2 border-t border-zinc-800/60" />
-                    <NavItem tabId="overview" icon={Activity} label="Overview" color="text-emerald-400" />
+                {/* Left Sidebar - Navigation */}
+                <div className="w-52 bg-[var(--surface-1)] border-r border-[var(--border-subtle)] flex flex-col shrink-0 py-4 px-3">
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold px-3 mb-2">Architecture</p>
+                    <div className="space-y-1">
+                        <NavItem tabId="plan" icon={Flag} label="Features & Plan" color="text-amber-400" />
+                        <NavItem tabId="database" icon={Database} label="Data Models" color="text-blue-400" />
+                        <NavItem tabId="api" icon={Globe} label="API Routes" color="text-purple-400" />
+                        <NavItem tabId="ui" icon={LayoutPanelTop} label="UI Views" color="text-pink-400" />
+                    </div>
 
-                    <div className="mt-auto pt-4 border-t border-zinc-800/60 px-2">
-                        <div className="flex items-center gap-1.5 text-zinc-700 text-[10px]">
-                            <GitBranch size={11} />
-                            <span className="truncate">{project?.repo_url?.split('/').pop()}</span>
+                    <div className="my-3 border-t border-[var(--border-subtle)]" />
+
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold px-3 mb-2">Analysis</p>
+                    <div className="space-y-1">
+                        <NavItem tabId="insights" icon={Brain} label="AI Insights" color="text-amber-400" />
+                        <NavItem tabId="overview" icon={Activity} label="Spec Overview" color="text-emerald-400" />
+                    </div>
+
+                    {recommendations && recommendations.total_count > 0 && (
+                        <div className="px-3 mt-3">
+                            <div className="p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border-subtle)]">
+                                <div className="flex items-center justify-between text-[11px] mb-1">
+                                    <span className="text-zinc-400">Recommendations</span>
+                                    <span className="font-bold text-zinc-200">{recommendations.total_count}</span>
+                                </div>
+                                {recommendations.critical_count > 0 && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400">
+                                        {recommendations.critical_count} critical issues
+                                    </span>
+                                )}
+                            </div>
                         </div>
+                    )}
+
+                    <div className="mt-auto pt-3 border-t border-[var(--border-subtle)] px-2">
+                        <a
+                            href={project?.repo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-xs font-mono truncate transition-colors"
+                        >
+                            <GitBranch size={13} className="shrink-0" />
+                            <span className="truncate">{project?.repo_url?.split('/').pop() || 'repo'}</span>
+                        </a>
                     </div>
                 </div>
 
-                {/* ── PLAN TAB ── */}
+                {/* ── PLAN TAB: Features, Generator & Code Viewer ── */}
                 {activeTab === 'plan' && (
                     <div className="flex flex-1 overflow-hidden">
 
-                        {/* Feature list */}
-                        <div className="w-56 border-r border-zinc-800/60 flex flex-col shrink-0 bg-[#0f0f11]">
-                            <div className="px-3 pt-3 pb-2 border-b border-zinc-800/60">
-                                <div className="flex items-center gap-2 bg-[#111113] border border-zinc-800 rounded px-2 py-1.5">
-                                    <Plus size={10} className="text-zinc-700 shrink-0" />
+                        {/* Feature List Column */}
+                        <div className="w-64 border-r border-[var(--border-subtle)] flex flex-col shrink-0 bg-[var(--surface-1)]">
+                            <div className="p-3 border-b border-[var(--border-subtle)]">
+                                <div className="flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-xl px-2.5 py-1.5 focus-within:border-blue-500/50 transition-all">
+                                    <Plus size={13} className="text-zinc-400 shrink-0" />
                                     <input
                                         value={newFeature}
                                         onChange={e => setNewFeature(e.target.value)}
@@ -510,13 +662,13 @@ export default function ProjectDetail() {
                                                 setNewFeature('');
                                             }
                                         }}
-                                        placeholder="New feature..."
-                                        className="flex-1 bg-transparent text-[11px] text-zinc-300 placeholder:text-zinc-700 outline-none"
+                                        placeholder="Add new feature..."
+                                        className="flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-500 outline-none"
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto py-1">
+                            <div className="flex-1 overflow-y-auto p-2 space-y-1">
                                 {features.map((f, i) => {
                                     const fImpl = implementations[f.id];
                                     const isSelected = selectedFeature?.id === f.id;
@@ -524,15 +676,21 @@ export default function ProjectDetail() {
                                         <button
                                             key={f.id}
                                             onClick={() => selectFeature(f)}
-                                            className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-all group ${isSelected ? 'bg-blue-600/15 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30'}`}
+                                            className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all ${
+                                                isSelected
+                                                    ? 'bg-blue-600/15 border border-blue-500/30 text-white'
+                                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-[var(--surface-2)] border border-transparent'
+                                            }`}
                                         >
-                                            <span className="text-[9px] text-zinc-700 w-4 shrink-0">{i + 1}</span>
-                                            <span className="flex-1 text-[11px] truncate">{f.name}</span>
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span className="text-[10px] text-zinc-500 font-mono w-4 shrink-0">{i + 1}.</span>
+                                                <span className="text-xs font-medium truncate">{f.name}</span>
+                                            </div>
                                             {fImpl?.done && (
-                                                <div className="shrink-0">
+                                                <div className="shrink-0 ml-1.5">
                                                     {fImpl.files.every(fi => fi.committed)
-                                                        ? <Check size={10} className="text-green-500" />
-                                                        : <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 block" />
+                                                        ? <Check size={13} className="text-emerald-400" />
+                                                        : <span className="w-2 h-2 rounded-full bg-amber-400 block" title="Uncommitted draft" />
                                                     }
                                                 </div>
                                             )}
@@ -542,162 +700,185 @@ export default function ProjectDetail() {
                             </div>
                         </div>
 
-                        {/* Feature detail / implementation panel */}
+                        {/* Feature Detail Canvas */}
                         <div className="flex-1 flex overflow-hidden">
                             {!selectedFeature ? (
-                                <div className="flex-1 flex items-center justify-center text-center p-12">
-                                    <div>
-                                        <Flag size={28} className="text-zinc-800 mx-auto mb-3" />
-                                        <p className="text-sm text-zinc-600">Select a feature to see its implementation plan</p>
+                                <div className="flex-1 flex items-center justify-center text-center p-8 bg-[var(--surface-0)]">
+                                    <div className="max-w-sm">
+                                        <div className="w-12 h-12 rounded-2xl bg-zinc-800/60 border border-zinc-700/60 flex items-center justify-center mx-auto mb-4 text-zinc-400">
+                                            <Flag size={20} />
+                                        </div>
+                                        <h3 className="text-sm font-semibold text-zinc-200 mb-1">Select a feature to begin</h3>
+                                        <p className="text-xs text-zinc-500 leading-relaxed">
+                                            Pick a feature from the left list to view its architecture plan, synthesize source code, or review existing files.
+                                        </p>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex-1 flex flex-col overflow-hidden">
-                                    {/* Feature header */}
-                                    <div className="px-6 py-4 border-b border-zinc-800/60 bg-[#0f0f11] shrink-0">
-                                        <div className="flex items-start justify-between">
-                                            <div>
-                                                <h2 className="text-base font-bold text-white">{selectedFeature.name}</h2>
-                                                <p className="text-xs text-zinc-600 mt-0.5">
-                                                    {filePlan.length} file{filePlan.length !== 1 ? 's' : ''} to generate
-                                                </p>
-                                            </div>
+                                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--surface-0)]">
+                                    {/* Feature Header */}
+                                    <div className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--surface-1)] shrink-0 flex items-center justify-between">
+                                        <div>
                                             <div className="flex items-center gap-2">
-                                                {impl?.done && !impl.files.every(f => f.committed) && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedFeature(null);
-                                                                showToast('Saved as draft');
-                                                            }}
-                                                            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-lg transition-all"
-                                                        >
-                                                            Keep as Draft
-                                                        </button>
-                                                        <button
-                                                            onClick={() => pushFeature(selectedFeature)}
-                                                            disabled={pushingAll}
-                                                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-blue-500/20"
-                                                        >
-                                                            {pushingAll ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
-                                                            Commit & Push
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {!impl?.done && !impl?.implementing && (
-                                                    <button
-                                                        onClick={() => implementFeature(selectedFeature)}
-                                                        className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-orange-500/20"
-                                                    >
-                                                        <Zap size={11} />
-                                                        Implement Plan
-                                                    </button>
-                                                )}
-                                                {impl?.implementing && (
-                                                    <div className="flex items-center gap-2 text-xs text-zinc-500 bg-zinc-800/40 px-3 py-2 rounded-lg">
-                                                        <Loader2 size={12} className="animate-spin text-orange-500" />
-                                                        Generating files...
-                                                    </div>
-                                                )}
+                                                <h2 className="text-base font-bold text-white">{selectedFeature.name}</h2>
                                                 {impl?.done && (
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                                        impl.files.every(f => f.committed)
+                                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                                    }`}>
+                                                        {impl.files.every(f => f.committed) ? 'Pushed' : 'Drafts Ready'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-zinc-400 mt-0.5">
+                                                {filePlan.length} file{filePlan.length !== 1 ? 's' : ''} planned across database, backend API, and web UI.
+                                            </p>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {impl?.done && !impl.files.every(f => f.committed) && (
+                                                <>
                                                     <button
                                                         onClick={() => {
-                                                            if (confirm('Discard these generated files?')) {
-                                                                setImplementations(prev => {
-                                                                    const next = { ...prev };
-                                                                    delete next[selectedFeature.id];
-                                                                    return next;
-                                                                });
-                                                                setOpenFile(null);
-                                                            }
+                                                            setSelectedFeature(null);
+                                                            showToast('Saved as draft');
                                                         }}
-                                                        className="p-2 text-zinc-700 hover:text-red-500 transition-colors"
-                                                        title="Discard implementation"
+                                                        className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl border border-[var(--border-subtle)] transition-all"
                                                     >
-                                                        <Trash2 size={14} />
+                                                        Keep as Draft
                                                     </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* File plan list */}
-                                    <div className="flex-1 overflow-hidden flex">
-                                        <div className="w-72 border-r border-zinc-800/60 overflow-y-auto shrink-0">
-                                            {/* Plan (before implementing) */}
-                                            {!impl?.done && (
-                                                <div className="p-4 space-y-1">
-                                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 px-1 mb-3">Files to generate</p>
-                                                    {filePlan.map((p, i) => (
-                                                        <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-[#111113] border border-zinc-800/60 rounded-lg">
-                                                            <File size={11} className={
-                                                                p.type === 'schemas' ? 'text-blue-400/60 shrink-0' :
-                                                                    p.type === 'endpoints' ? 'text-purple-400/60 shrink-0' :
-                                                                        'text-pink-400/60 shrink-0'
-                                                            } />
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-[11px] text-zinc-300 truncate">{p.fileName}</p>
-                                                                <p className="text-[9px] text-zinc-700 truncate">{p.filePath}</p>
-                                                            </div>
-                                                            <span className={`text-[9px] font-bold uppercase shrink-0 ${p.type === 'schemas' ? 'text-blue-600' : p.type === 'endpoints' ? 'text-purple-600' : 'text-pink-600'}`}>
-                                                                {p.type === 'schemas' ? 'db' : p.type === 'endpoints' ? 'api' : 'ui'}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                    {filePlan.length === 0 && (
-                                                        <p className="text-xs text-zinc-700 py-4 text-center">No spec items matched. Add schemas/endpoints/UI first.</p>
-                                                    )}
-                                                    {filePlan.length > 0 && (
-                                                        <button
-                                                            onClick={() => implementFeature(selectedFeature)}
-                                                            className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold rounded-lg transition-all"
-                                                        >
-                                                            <Play size={11} />
-                                                            Implement Plan
-                                                        </button>
-                                                    )}
-                                                </div>
+                                                    <button
+                                                        onClick={() => pushFeature(selectedFeature)}
+                                                        disabled={pushingAll}
+                                                        className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-600/20 transition-all"
+                                                    >
+                                                        {pushingAll ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                                                        Commit & Push
+                                                    </button>
+                                                </>
                                             )}
 
-                                            {/* Generated files (after implementing) */}
+                                            {!impl?.done && !impl?.implementing && (
+                                                <button
+                                                    onClick={() => implementFeature(selectedFeature)}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white text-xs font-semibold rounded-xl shadow-lg shadow-orange-500/20 transition-all hover:scale-[1.01]"
+                                                >
+                                                    <Zap size={13} />
+                                                    Implement Feature
+                                                </button>
+                                            )}
+
                                             {impl?.implementing && (
-                                                <div className="p-4 flex flex-col h-full bg-[#0a0a0c]">
-                                                    <div className="flex items-center gap-2 mb-4">
-                                                        <Loader2 size={12} className="animate-spin text-orange-500" />
-                                                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Live Implementation</span>
-                                                    </div>
-                                                    <div className="flex-1 font-mono text-[10px] space-y-1 overflow-y-auto text-zinc-400">
-                                                        {genLogs.map((log, i) => (
-                                                            <div key={i} className="animate-in fade-in slide-in-from-left-2 duration-200">
-                                                                {log}
-                                                            </div>
-                                                        ))}
-                                                        <div className="animate-pulse text-zinc-700">_</div>
-                                                    </div>
+                                                <div className="flex items-center gap-2 text-xs font-medium text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-xl">
+                                                    <Loader2 size={13} className="animate-spin" />
+                                                    Generating source files...
                                                 </div>
                                             )}
 
                                             {impl?.done && (
-                                                <div className="p-4 space-y-1">
-                                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 px-1 mb-3">Generated files — click to review</p>
+                                                <button
+                                                    onClick={() => setDiscardModalOpen(true)}
+                                                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+                                                    title="Discard implementation"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Plan / Code Area */}
+                                    <div className="flex-1 overflow-hidden flex">
+                                        <div className="w-80 border-r border-[var(--border-subtle)] overflow-y-auto shrink-0 bg-[var(--surface-0)]">
+                                            {/* Pre-implementation plan view */}
+                                            {!impl?.done && !impl?.implementing && (
+                                                <div className="p-4 space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Planned Artifacts</span>
+                                                        <span className="text-[11px] text-zinc-500">{filePlan.length} files</span>
+                                                    </div>
+
+                                                    {filePlan.map((p, i) => (
+                                                        <div key={i} className="p-3 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl space-y-1">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-medium text-zinc-200 truncate">{p.fileName}</span>
+                                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase font-mono ${
+                                                                    p.type === 'schemas' ? 'bg-blue-500/10 text-blue-400' :
+                                                                    p.type === 'endpoints' ? 'bg-purple-500/10 text-purple-400' :
+                                                                    'bg-pink-500/10 text-pink-400'
+                                                                }`}>
+                                                                    {p.type === 'schemas' ? 'DB' : p.type === 'endpoints' ? 'API' : 'UI'}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-zinc-500 font-mono truncate">{p.filePath}</p>
+                                                        </div>
+                                                    ))}
+
+                                                    {filePlan.length === 0 && (
+                                                        <p className="text-xs text-zinc-500 py-6 text-center">No matching spec items found. Add tables or routes first.</p>
+                                                    )}
+
+                                                    {filePlan.length > 0 && (
+                                                        <button
+                                                            onClick={() => implementFeature(selectedFeature)}
+                                                            className="w-full mt-3 flex items-center justify-center gap-2 py-2.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-orange-500/20"
+                                                        >
+                                                            <Play size={12} />
+                                                            Synthesize Code
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Live Generation Console */}
+                                            {impl?.implementing && (
+                                                <div className="p-4 flex flex-col h-full bg-[var(--surface-0)] font-mono">
+                                                    <div className="flex items-center gap-2 mb-3 text-orange-400 text-xs font-semibold">
+                                                        <Loader2 size={13} className="animate-spin" />
+                                                        <span>Synthesis in progress</span>
+                                                    </div>
+                                                    <div className="flex-1 text-[11px] space-y-1.5 overflow-y-auto text-zinc-400 bg-[var(--surface-1)] p-3 rounded-xl border border-[var(--border-subtle)]">
+                                                        {genLogs.map((log, i) => (
+                                                            <div key={i} className="animate-fade">
+                                                                {log}
+                                                            </div>
+                                                        ))}
+                                                        <div className="animate-pulse text-zinc-600">_</div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Generated Files list (post implementation) */}
+                                            {impl?.done && (
+                                                <div className="p-4 space-y-2">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Generated Files</span>
+                                                        <span className="text-[11px] text-zinc-500">{impl.files.length}</span>
+                                                    </div>
+
                                                     {impl.files.map((f, i) => (
                                                         <button
                                                             key={i}
                                                             onClick={() => setOpenFile(f)}
-                                                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-all text-left ${openFile?.filePath === f.filePath
-                                                                ? 'bg-blue-600/15 border-blue-500/30 text-white'
-                                                                : 'bg-[#111113] border-zinc-800/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300'
-                                                                }`}
+                                                            className={`w-full flex items-center gap-2.5 p-3 rounded-xl border transition-all text-left ${
+                                                                openFile?.filePath === f.filePath
+                                                                    ? 'bg-blue-600/15 border-blue-500/30 text-white'
+                                                                    : 'bg-[var(--surface-1)] border-[var(--border-subtle)] text-zinc-300 hover:border-zinc-700'
+                                                            }`}
                                                         >
-                                                            <File size={11} className={f.committed ? 'text-green-500 shrink-0' : 'text-yellow-400 shrink-0'} />
+                                                            <File size={13} className={f.committed ? 'text-emerald-400 shrink-0' : 'text-amber-400 shrink-0'} />
                                                             <div className="flex-1 min-w-0">
-                                                                <p className="text-[11px] truncate">{f.fileName}</p>
-                                                                <p className="text-[9px] text-zinc-700 truncate">{f.filePath}</p>
+                                                                <p className="text-xs font-medium truncate">{f.fileName}</p>
+                                                                <p className="text-[10px] text-zinc-500 font-mono truncate">{f.filePath}</p>
                                                             </div>
-                                                            {f.committed
-                                                                ? <Check size={10} className="text-green-500 shrink-0" />
-                                                                : <span className="text-[9px] text-yellow-400 font-bold shrink-0">DRAFT</span>
-                                                            }
+                                                            {f.committed ? (
+                                                                <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            ) : (
+                                                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold shrink-0">
+                                                                    DRAFT
+                                                                </span>
+                                                            )}
                                                         </button>
                                                     ))}
 
@@ -705,22 +886,17 @@ export default function ProjectDetail() {
                                                         <button
                                                             onClick={() => pushFeature(selectedFeature)}
                                                             disabled={pushingAll}
-                                                            className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all"
+                                                            className="w-full mt-3 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-blue-600/20"
                                                         >
-                                                            {pushingAll ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
-                                                            Commit & Push to GitHub
+                                                            {pushingAll ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                                                            Commit & Push
                                                         </button>
-                                                    )}
-                                                    {impl.files.every(f => f.committed) && (
-                                                        <div className="flex items-center justify-center gap-2 py-3 text-green-500 text-xs font-bold">
-                                                            <Check size={12} /> Pushed to GitHub
-                                                        </div>
                                                     )}
                                                 </div>
                                             )}
                                         </div>
 
-                                        {/* Code viewer (right side of detail panel) */}
+                                        {/* Code Viewer */}
                                         {openFile ? (
                                             <div className="flex-1 overflow-hidden">
                                                 <CodeViewer
@@ -729,13 +905,13 @@ export default function ProjectDetail() {
                                                     onChange={(code) => {
                                                         setOpenFile(f => f ? { ...f, code } : f);
                                                         setImplementations(prev => {
-                                                            const impl = prev[selectedFeature.id];
-                                                            if (!impl) return prev;
+                                                            const featureImpl = prev[selectedFeature.id];
+                                                            if (!featureImpl) return prev;
                                                             return {
                                                                 ...prev,
                                                                 [selectedFeature.id]: {
-                                                                    ...impl,
-                                                                    files: impl.files.map(fi =>
+                                                                    ...featureImpl,
+                                                                    files: featureImpl.files.map(fi =>
                                                                         fi.filePath === openFile.filePath ? { ...fi, code } : fi
                                                                     )
                                                                 }
@@ -746,11 +922,11 @@ export default function ProjectDetail() {
                                                 />
                                             </div>
                                         ) : (
-                                            <div className="flex-1 flex items-center justify-center text-center p-8">
-                                                <div>
-                                                    <Code2 size={24} className="text-zinc-800 mx-auto mb-3" />
-                                                    <p className="text-xs text-zinc-700">
-                                                        {impl?.done ? 'Click a file to review its code' : 'Implement the plan to generate code'}
+                                            <div className="flex-1 flex items-center justify-center text-center p-8 bg-[var(--surface-0)]">
+                                                <div className="max-w-xs">
+                                                    <Code2 size={24} className="text-zinc-700 mx-auto mb-2" />
+                                                    <p className="text-xs text-zinc-500">
+                                                        {impl?.done ? 'Click any file on the left to inspect and edit code' : 'Synthesize code to preview generated implementation'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -760,12 +936,14 @@ export default function ProjectDetail() {
                             )}
                         </div>
 
-                        {/* File tree (right side) */}
-                        {treeVisible && (
-                            <div className="w-52 bg-[#111113] border-l border-zinc-800/60 flex flex-col shrink-0">
-                                <div className="h-9 border-b border-zinc-800/60 flex items-center justify-between px-3 shrink-0">
-                                    <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Files</span>
-                                    <button onClick={() => setTreeVisible(false)} className="text-zinc-700 hover:text-zinc-400"><X size={11} /></button>
+                        {/* File Tree Panel (Right Side) */}
+                        {treeVisible ? (
+                            <div className="w-56 bg-[var(--surface-1)] border-l border-[var(--border-subtle)] flex flex-col shrink-0">
+                                <div className="h-10 border-b border-[var(--border-subtle)] flex items-center justify-between px-3 shrink-0">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Project Tree</span>
+                                    <button onClick={() => setTreeVisible(false)} className="text-zinc-500 hover:text-zinc-300 p-1">
+                                        <X size={12} />
+                                    </button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto py-2">
                                     {buildTree().map(n => (
@@ -773,170 +951,444 @@ export default function ProjectDetail() {
                                     ))}
                                 </div>
                             </div>
-                        )}
-                        {!treeVisible && (
-                            <button onClick={() => setTreeVisible(true)} className="w-8 bg-[#111113] border-l border-zinc-800/60 flex items-center justify-center text-zinc-700 hover:text-zinc-400 transition-colors shrink-0">
-                                <ChevronRight size={12} className="rotate-180" />
+                        ) : (
+                            <button
+                                onClick={() => setTreeVisible(true)}
+                                className="w-8 bg-[var(--surface-1)] border-l border-[var(--border-subtle)] flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+                                title="Show file tree"
+                            >
+                                <ChevronRight size={14} className="rotate-180" />
                             </button>
                         )}
                     </div>
                 )}
 
-                {/* ── DATA TAB (plain spec editor) ── */}
+                {/* ── DATABASE TAB ── */}
                 {activeTab === 'database' && (
-                    <div className="flex-1 overflow-auto p-6 space-y-4">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Database size={14} className="text-blue-400" />
-                            <h2 className="text-sm font-bold text-zinc-300">Data Layer</h2>
-                            <span className="text-zinc-700 text-xs">({schemas.length})</span>
+                    <div className="flex-1 overflow-auto p-8 max-w-4xl mx-auto w-full space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Database Schemas</h2>
+                                <p className="text-xs text-zinc-400 mt-1">PostgreSQL tables and data models managed by Prisma.</p>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                {schemas.length} models
+                            </span>
                         </div>
-                        <div className="flex items-center gap-2 bg-[#111113] border border-zinc-800 rounded-lg px-3 py-2">
-                            <Plus size={11} className="text-zinc-700" />
-                            <input value={newTable} onChange={e => setNewTable(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter' && newTable.trim()) { addItem('schemas', { table_name: newTable.trim(), fields: [] }); setNewTable(''); } }}
-                                placeholder="Table name... (Enter)" className="flex-1 bg-transparent text-xs text-zinc-300 placeholder:text-zinc-700 outline-none" />
+
+                        {/* Add schema */}
+                        <div className="flex items-center gap-2 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 focus-within:border-blue-500/50 transition-all">
+                            <Plus size={14} className="text-zinc-400 shrink-0" />
+                            <input
+                                value={newTable}
+                                onChange={e => setNewTable(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && newTable.trim()) {
+                                        addItem('schemas', { table_name: newTable.trim(), fields: [] });
+                                        setNewTable('');
+                                    }
+                                }}
+                                placeholder="Add database table (e.g. users, subscriptions, invoices)..."
+                                className="flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-500 outline-none font-mono"
+                            />
                         </div>
-                        <div className="space-y-1">
+
+                        {/* Schemas List */}
+                        <div className="space-y-2">
                             {schemas.map(s => (
-                                <div key={s.id} className="group flex items-center gap-3 px-3 py-2.5 bg-[#111113] border border-zinc-800/60 rounded-lg hover:border-zinc-700 transition-all">
-                                    <span className="text-blue-700 text-[10px] font-bold w-12 text-right shrink-0">model</span>
-                                    <span className="flex-1 text-xs text-blue-300">{s.table_name}</span>
-                                    <span className="text-zinc-700 text-[9px]">{s.fields?.length || 0} fields</span>
-                                    <button onClick={() => deleteItem('schemas', s.id)} className="opacity-0 group-hover:opacity-100 text-zinc-700 hover:text-red-500 transition-all"><Trash2 size={12} /></button>
+                                <div key={s.id} className="group flex items-center justify-between p-3.5 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl hover:border-zinc-700 transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                            MODEL
+                                        </span>
+                                        <span className="text-sm font-semibold text-zinc-200 font-mono">{s.table_name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs text-zinc-500">{s.fields?.length || 0} fields configured</span>
+                                        <button
+                                            onClick={() => deleteItem('schemas', s.id)}
+                                            className="text-zinc-600 hover:text-red-400 p-1 opacity-40 group-hover:opacity-100 transition-all"
+                                            title="Delete model"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* ── API TAB ── */}
+                {/* ── API ROUTES TAB ── */}
                 {activeTab === 'api' && (
-                    <div className="flex-1 overflow-auto p-6 space-y-4">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Globe size={14} className="text-purple-400" />
-                            <h2 className="text-sm font-bold text-zinc-300">API Endpoints</h2>
-                            <span className="text-zinc-700 text-xs">({endpoints.length})</span>
+                    <div className="flex-1 overflow-auto p-8 max-w-4xl mx-auto w-full space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-white">API Endpoints</h2>
+                                <p className="text-xs text-zinc-400 mt-1">FastAPI routes and contract endpoints.</p>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                {endpoints.length} routes
+                            </span>
                         </div>
-                        <div className="flex items-center gap-2 bg-[#111113] border border-zinc-800 rounded-lg px-3 py-2">
-                            <select value={newRouteMethod} onChange={e => setNewRouteMethod(e.target.value)} className={`bg-transparent text-[10px] font-bold uppercase outline-none cursor-pointer w-14 shrink-0 ${METHOD_COLOR[newRouteMethod]}`}>
-                                {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map(m => <option key={m} value={m}>{m}</option>)}
+
+                        {/* Add endpoint */}
+                        <div className="flex items-center gap-3 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl px-3 py-2">
+                            <select
+                                value={newRouteMethod}
+                                onChange={e => setNewRouteMethod(e.target.value)}
+                                className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold uppercase outline-none cursor-pointer border ${METHOD_COLORS[newRouteMethod]?.bg} ${METHOD_COLORS[newRouteMethod]?.text} ${METHOD_COLORS[newRouteMethod]?.border}`}
+                            >
+                                {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map(m => <option key={m} value={m} className="bg-zinc-900 text-white">{m}</option>)}
                             </select>
-                            <input value={newRoute} onChange={e => setNewRoute(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter' && newRoute.trim()) { addItem('endpoints', { method: newRouteMethod, route: newRoute.trim(), request_schema: {}, response_schema: {} }); setNewRoute(''); } }}
-                                placeholder="/route (Enter)" className="flex-1 bg-transparent text-xs text-zinc-300 placeholder:text-zinc-700 outline-none" />
+                            <input
+                                value={newRoute}
+                                onChange={e => setNewRoute(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && newRoute.trim()) {
+                                        const route = newRoute.trim().startsWith('/') ? newRoute.trim() : `/${newRoute.trim()}`;
+                                        addItem('endpoints', { method: newRouteMethod, route, request_schema: {}, response_schema: {} });
+                                        setNewRoute('');
+                                    }
+                                }}
+                                placeholder="/api/v1/resource (press Enter)..."
+                                className="flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-500 outline-none font-mono"
+                            />
                         </div>
-                        <div className="space-y-1">
-                            {endpoints.map(ep => (
-                                <div key={ep.id} className="group flex items-center gap-3 px-3 py-2.5 bg-[#111113] border border-zinc-800/60 rounded-lg hover:border-zinc-700 transition-all">
-                                    <span className={`text-[10px] font-bold w-14 text-right shrink-0 ${METHOD_COLOR[ep.method] || 'text-zinc-500'}`}>{ep.method}</span>
-                                    <span className="flex-1 text-xs text-zinc-300 font-mono">{ep.route}</span>
-                                    <button onClick={() => deleteItem('endpoints', ep.id)} className="opacity-0 group-hover:opacity-100 text-zinc-700 hover:text-red-500 transition-all"><Trash2 size={12} /></button>
+
+                        {/* Routes List */}
+                        <div className="space-y-2">
+                            {endpoints.map(ep => {
+                                const badge = METHOD_COLORS[ep.method] || { bg: 'bg-zinc-800', text: 'text-zinc-300', border: 'border-zinc-700' };
+                                return (
+                                    <div key={ep.id} className="group flex items-center justify-between p-3.5 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl hover:border-zinc-700 transition-all">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${badge.bg} ${badge.text} ${badge.border}`}>
+                                                {ep.method}
+                                            </span>
+                                            <span className="text-xs font-mono font-medium text-zinc-200">{ep.route}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => deleteItem('endpoints', ep.id)}
+                                            className="text-zinc-600 hover:text-red-400 p-1 opacity-40 group-hover:opacity-100 transition-all"
+                                            title="Delete endpoint"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── UI COMPONENTS TAB ── */}
+                {activeTab === 'ui' && (
+                    <div className="flex-1 overflow-auto p-8 max-w-4xl mx-auto w-full space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-white">UI Components & Pages</h2>
+                                <p className="text-xs text-zinc-400 mt-1">Next.js views and shared components in the frontend app.</p>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-pink-500/10 text-pink-400 border border-pink-500/20">
+                                {uiComponents.length} components
+                            </span>
+                        </div>
+
+                        {/* Add UI Component */}
+                        <div className="flex items-center gap-2 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl px-3 py-2">
+                            <Plus size={14} className="text-zinc-400 shrink-0" />
+                            <input
+                                value={newUI}
+                                onChange={e => setNewUI(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && newUI.trim()) {
+                                        addItem('ui-components', { name: newUI.trim(), type: 'page' });
+                                        setNewUI('');
+                                    }
+                                }}
+                                placeholder="Component name (e.g. AnalyticsDashboard, CheckoutModal)..."
+                                className="flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-500 outline-none"
+                            />
+                        </div>
+
+                        {/* Components List */}
+                        <div className="space-y-2">
+                            {uiComponents.map(c => (
+                                <div key={c.id} className="group flex items-center justify-between p-3.5 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl hover:border-zinc-700 transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-pink-500/10 text-pink-400 border border-pink-500/20">
+                                            {c.type}
+                                        </span>
+                                        <span className="text-xs font-medium text-zinc-200">{c.name}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => deleteItem('ui-components', c.id)}
+                                        className="text-zinc-600 hover:text-red-400 p-1 opacity-40 group-hover:opacity-100 transition-all"
+                                        title="Delete component"
+                                    >
+                                        <Trash2 size={13} />
+                                    </button>
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* ── UI TAB ── */}
-                {activeTab === 'ui' && (
-                    <div className="flex-1 overflow-auto p-6 space-y-4">
-                        <div className="flex items-center gap-2 mb-4">
-                            <LayoutPanelTop size={14} className="text-pink-400" />
-                            <h2 className="text-sm font-bold text-zinc-300">UI Components</h2>
-                            <span className="text-zinc-700 text-xs">({uiComponents.length})</span>
+                {/* ── AI INSIGHTS TAB ── */}
+                {activeTab === 'insights' && (
+                    <div className="flex-1 overflow-auto p-8 max-w-4xl mx-auto w-full space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Brain size={20} className="text-amber-400" />
+                                    <span>AI Architecture Insights</span>
+                                </h2>
+                                <p className="text-xs text-zinc-400 mt-1">Automatic consistency checks and architecture gap detection.</p>
+                            </div>
+                            <button
+                                onClick={loadRecommendations}
+                                disabled={recsLoading}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-[var(--surface-1)] border border-[var(--border-subtle)] hover:border-zinc-700 transition-all disabled:opacity-50"
+                            >
+                                {recsLoading ? <Loader2 size={12} className="animate-spin" /> : <TrendingUp size={12} />}
+                                Refresh Analysis
+                            </button>
                         </div>
-                        <div className="flex items-center gap-2 bg-[#111113] border border-zinc-800 rounded-lg px-3 py-2">
-                            <Plus size={11} className="text-zinc-700" />
-                            <input value={newUI} onChange={e => setNewUI(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter' && newUI.trim()) { addItem('ui-components', { name: newUI.trim(), type: 'page' }); setNewUI(''); } }}
-                                placeholder="Component name... (Enter)" className="flex-1 bg-transparent text-xs text-zinc-300 placeholder:text-zinc-700 outline-none" />
-                        </div>
-                        <div className="space-y-1">
-                            {uiComponents.map(c => (
-                                <div key={c.id} className="group flex items-center gap-3 px-3 py-2.5 bg-[#111113] border border-zinc-800/60 rounded-lg hover:border-zinc-700 transition-all">
-                                    <span className="text-pink-700 text-[10px] font-bold w-14 text-right shrink-0 capitalize">{c.type}</span>
-                                    <span className="flex-1 text-xs text-pink-200">{c.name}</span>
-                                    <button onClick={() => deleteItem('ui-components', c.id)} className="opacity-0 group-hover:opacity-100 text-zinc-700 hover:text-red-500 transition-all"><Trash2 size={12} /></button>
+
+                        {/* Project Completeness Overview */}
+                        {recommendations && (
+                            <div className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-2xl p-5 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-zinc-400">Identified Archetype:</span>
+                                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                                        {recommendations.project_type}
+                                    </span>
                                 </div>
-                            ))}
-                        </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                                    {Object.entries(recommendations.completeness_scores || {}).map(([key, value]: [string, any]) => (
+                                        <div key={key} className="p-3 bg-[var(--surface-2)] rounded-xl border border-[var(--border-subtle)]">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-[11px] text-zinc-400 capitalize">{key}</span>
+                                                <span className="text-xs font-bold text-zinc-200">{Math.round(value * 100)}%</span>
+                                            </div>
+                                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                        value >= 0.7 ? 'bg-emerald-500' : value >= 0.4 ? 'bg-amber-500' : 'bg-red-500'
+                                                    }`}
+                                                    style={{ width: `${Math.round(value * 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {recsLoading && !recommendations && (
+                            <div className="flex items-center justify-center py-16">
+                                <Loader2 size={20} className="animate-spin text-amber-400" />
+                                <span className="ml-2.5 text-xs text-zinc-400">Analyzing schema & routes consistency...</span>
+                            </div>
+                        )}
+
+                        {/* Recommendations */}
+                        {recommendations && (['critical', 'recommended', 'nice_to_have'] as const).map(severity => {
+                            const recs = recommendations.recommendations?.[severity] || [];
+                            if (recs.length === 0) return null;
+                            const config = {
+                                critical: { label: 'Critical Issues', icon: ShieldAlert, color: 'text-red-400', border: 'border-red-500/25', bg: 'bg-red-500/5' },
+                                recommended: { label: 'Recommended Improvements', icon: Lightbulb, color: 'text-amber-400', border: 'border-amber-500/25', bg: 'bg-amber-500/5' },
+                                nice_to_have: { label: 'Nice-to-Have Enhancements', icon: Info, color: 'text-blue-400', border: 'border-blue-500/25', bg: 'bg-blue-500/5' },
+                            }[severity];
+                            const Icon = config.icon;
+                            return (
+                                <div key={severity} className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <Icon size={14} className={config.color} />
+                                        <h3 className={`text-xs font-bold uppercase tracking-wider ${config.color}`}>
+                                            {config.label} ({recs.length})
+                                        </h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {recs.map((rec: any) => (
+                                            <div key={rec.id} className={`group ${config.bg} border ${config.border} rounded-xl p-4 transition-all hover:border-zinc-600`}>
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="space-y-1">
+                                                        <h4 className="text-xs font-bold text-zinc-100">{rec.title}</h4>
+                                                        <p className="text-xs text-zinc-400 leading-relaxed">{rec.description}</p>
+                                                        <div className="flex items-center gap-2 pt-1">
+                                                            <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase bg-zinc-800 text-zinc-300">
+                                                                {rec.layer}
+                                                            </span>
+                                                            <span className="text-[10px] text-zinc-500">{rec.type?.replace('_', ' ')}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        {rec.action?.type !== 'info' && rec.action?.type !== 'navigate' && (
+                                                            <button
+                                                                onClick={() => handleApplyRec(rec.id)}
+                                                                disabled={applyingRecId === rec.id}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all disabled:opacity-50"
+                                                            >
+                                                                {applyingRecId === rec.id ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                                                                Apply
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDismissRec(rec.id)}
+                                                            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-[var(--surface-2)] transition-all"
+                                                            title="Dismiss"
+                                                        >
+                                                            <EyeOff size={13} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {recommendations && recommendations.total_count === 0 && (
+                            <div className="text-center py-16 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-2xl">
+                                <Check size={28} className="mx-auto text-emerald-400 mb-2" />
+                                <h3 className="text-sm font-semibold text-zinc-200">Architecture is fully consistent</h3>
+                                <p className="text-xs text-zinc-500 mt-1">No missing schemas, unhandled routes, or orphaned components detected.</p>
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {/* ── OVERVIEW TAB ── */}
                 {activeTab === 'overview' && (
-                    <div className="flex-1 overflow-auto p-6 space-y-4">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Activity size={14} className="text-emerald-400" />
-                            <h2 className="text-sm font-bold text-zinc-300">Overview</h2>
+                    <div className="flex-1 overflow-auto p-8 max-w-4xl mx-auto w-full space-y-6">
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Project Overview</h2>
+                            <p className="text-xs text-zinc-400 mt-1">Summary of layers and current code implementation status.</p>
                         </div>
-                        <div className="grid grid-cols-3 gap-3">
+
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                             {[
-                                { label: 'Features', value: features.length, color: 'text-yellow-400' },
-                                { label: 'Tables', value: schemas.length, color: 'text-blue-400' },
+                                { label: 'Features', value: features.length, color: 'text-amber-400' },
+                                { label: 'Data Models', value: schemas.length, color: 'text-blue-400' },
                                 { label: 'Endpoints', value: endpoints.length, color: 'text-purple-400' },
-                                { label: 'UI Components', value: uiComponents.length, color: 'text-pink-400' },
-                                { label: 'Implemented', value: Object.values(implementations).filter(i => i.done).length, color: 'text-green-400' },
+                                { label: 'UI Views', value: uiComponents.length, color: 'text-pink-400' },
+                                { label: 'Implemented', value: Object.values(implementations).filter(i => i.done).length, color: 'text-emerald-400' },
                             ].map(({ label, value, color }) => (
-                                <div key={label} className="bg-[#111113] border border-zinc-800/60 rounded-xl p-4">
-                                    <p className="text-[9px] text-zinc-700 uppercase tracking-widest mb-1">{label}</p>
-                                    <p className={`text-xl font-bold ${color}`}>{value}</p>
+                                <div key={label} className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl p-4">
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1">{label}</p>
+                                    <p className={`text-2xl font-bold ${color}`}>{value}</p>
                                 </div>
                             ))}
                         </div>
-                        <div className="bg-[#111113] border border-zinc-800/60 rounded-xl p-5 font-mono text-xs leading-6">
-                            <div className="text-zinc-600">{`# ${project?.name}`}</div>
-                            <div className="text-zinc-700">{`repo: ${project?.repo_url}`}</div>
-                            <div className="mt-2 text-blue-400">{`features:  ${features.map((f: any) => f.name).join(', ') || '—'}`}</div>
-                            <div className="text-emerald-400">{`tables:    ${schemas.map((s: any) => s.table_name).join(', ') || '—'}`}</div>
+
+                        <div className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl p-5 space-y-3 font-mono text-xs">
+                            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+                                <span className="text-zinc-400">Repository Name</span>
+                                <span className="text-zinc-200 font-bold">{project?.name}</span>
+                            </div>
+                            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+                                <span className="text-zinc-400">GitHub Remote</span>
+                                <a href={project?.repo_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                                    {project?.repo_url}
+                                </a>
+                            </div>
+                            <div className="pt-1">
+                                <span className="text-zinc-500 block mb-1">Configured Features:</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {features.map((f: any) => (
+                                        <span key={f.id} className="px-2 py-0.5 rounded bg-[var(--surface-2)] text-zinc-300 border border-[var(--border-subtle)] text-[11px]">
+                                            {f.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Drafts tray */}
-            {showDraftsTray && (
-                <div className="fixed bottom-14 right-4 w-80 bg-[#111113] border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/60">
-                        <div className="flex items-center gap-2">
-                            <Inbox size={13} className="text-yellow-400" />
-                            <span className="text-xs font-bold text-zinc-300">{allDraftFiles.length} draft{allDraftFiles.length !== 1 ? 's' : ''}</span>
+            {/* Discard Confirmation Modal */}
+            {discardModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade">
+                    <div className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+                                <Trash2 size={18} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-white">Discard generated files?</h3>
+                                <p className="text-xs text-zinc-400 mt-0.5">This will clear the drafts for this feature.</p>
+                            </div>
                         </div>
-                        <button onClick={() => setShowDraftsTray(false)} className="text-zinc-600 hover:text-zinc-300"><X size={13} /></button>
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                            <button
+                                onClick={() => setDiscardModalOpen(false)}
+                                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white hover:bg-[var(--surface-2)] transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDiscard}
+                                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-all shadow-md shadow-red-600/20"
+                            >
+                                Discard
+                            </button>
+                        </div>
                     </div>
-                    <div className="max-h-64 overflow-y-auto divide-y divide-zinc-800/40">
+                </div>
+            )}
+
+            {/* Drafts Tray Slideout */}
+            {showDraftsTray && (
+                <div className="fixed bottom-14 right-6 w-84 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl z-40 overflow-hidden animate-slideUp">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
+                        <div className="flex items-center gap-2">
+                            <Inbox size={14} className="text-amber-400" />
+                            <span className="text-xs font-bold text-zinc-200">{allDraftFiles.length} pending draft{allDraftFiles.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <button onClick={() => setShowDraftsTray(false)} className="text-zinc-500 hover:text-white">
+                            <X size={14} />
+                        </button>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y divide-[var(--border-subtle)]">
                         {allDraftFiles.length === 0 ? (
-                            <p className="text-xs text-zinc-700 px-4 py-6 text-center">No drafts. Implement a feature to generate code.</p>
+                            <p className="text-xs text-zinc-500 p-6 text-center">No uncommitted drafts found.</p>
                         ) : allDraftFiles.map((f, i) => (
                             <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                                <File size={11} className="text-yellow-400 shrink-0" />
+                                <File size={12} className="text-amber-400 shrink-0" />
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-[11px] text-zinc-300 truncate">{f.fileName}</p>
-                                    <p className="text-[9px] text-zinc-600 truncate">{f.filePath}</p>
+                                    <p className="text-xs font-medium text-zinc-200 truncate">{f.fileName}</p>
+                                    <p className="text-[10px] text-zinc-500 font-mono truncate">{f.filePath}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
                     {allDraftFiles.length > 0 && (
-                        <div className="px-4 py-3 border-t border-zinc-800/60">
+                        <div className="p-3 border-t border-[var(--border-subtle)] bg-[var(--surface-2)]">
                             <button
                                 onClick={() => { if (selectedFeature) pushFeature(selectedFeature); }}
                                 disabled={pushingAll || !selectedFeature}
-                                className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all"
+                                className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-blue-600/20"
                             >
-                                {pushingAll ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                                Push All to GitHub
+                                {pushingAll ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                                Commit & Push All
                             </button>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Toast */}
+            {/* Custom Toast Notification */}
             {toast && (
-                <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-xs font-bold shadow-lg z-[100] flex items-center gap-2 ${toast.ok ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-                    {toast.ok ? <Check size={12} /> : <AlertCircle size={12} />}
-                    {toast.msg}
+                <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl text-xs font-semibold shadow-xl z-50 flex items-center gap-2 animate-slideUp ${
+                    toast.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+                }`}>
+                    {toast.ok ? <Check size={14} /> : <AlertCircle size={14} />}
+                    <span>{toast.msg}</span>
                 </div>
             )}
         </div>

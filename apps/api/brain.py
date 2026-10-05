@@ -1,17 +1,40 @@
 import os
 import json
 import logging
+from dotenv import load_dotenv
 from groq import Groq
 from typing import List, Dict, Any
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:brain: %(message)s")
 log = logging.getLogger("brain")
 
 def get_client():
+    load_dotenv()
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         return None
     return Groq(api_key=api_key)
+
+DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+FALLBACK_MODELS = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile"]
+
+def create_completion(client, **kwargs):
+    model = kwargs.pop("model", DEFAULT_MODEL)
+    candidates = [model] + [m for m in FALLBACK_MODELS if m != model]
+    last_err = None
+    for m in candidates:
+        try:
+            return client.chat.completions.create(model=m, **kwargs)
+        except Exception as e:
+            last_err = e
+            err_str = str(e).lower()
+            if "model_not_found" in err_str or "does not exist" in err_str or "404" in err_str:
+                log.warning(f"Model {m} not available, trying next fallback...")
+                continue
+            raise e
+    raise last_err
 
 def analyze_spec_and_suggest(layer: str, current_items: List[Dict[str, Any]], project_context: str) -> List[str]:
     """
@@ -35,7 +58,8 @@ def analyze_spec_and_suggest(layer: str, current_items: List[Dict[str, Any]], pr
     """
 
     try:
-        chat_completion = client.chat.completions.create(
+        chat_completion = create_completion(
+            client,
             messages=[
                 {
                     "role": "system",
@@ -46,7 +70,6 @@ def analyze_spec_and_suggest(layer: str, current_items: List[Dict[str, Any]], pr
                     "content": prompt,
                 }
             ],
-            model="llama-3.3-70b-versatile",
             temperature=0.2,
         )
         content = chat_completion.choices[0].message.content
@@ -86,7 +109,8 @@ def generate_react_component(name: str, type: str, context: str) -> str:
     """
 
     try:
-        chat_completion = client.chat.completions.create(
+        chat_completion = create_completion(
+            client,
             messages=[
                 {
                     "role": "system",
@@ -97,7 +121,6 @@ def generate_react_component(name: str, type: str, context: str) -> str:
                     "content": prompt,
                 }
             ],
-            model="llama-3.3-70b-versatile",
             temperature=0.1,
         )
         content = chat_completion.choices[0].message.content
@@ -138,7 +161,8 @@ def suggest_initial_spec(description: str) -> Dict[str, Any]:
     """
 
     try:
-        chat_completion = client.chat.completions.create(
+        chat_completion = create_completion(
+            client,
             messages=[
                 {
                     "role": "system",
@@ -149,7 +173,6 @@ def suggest_initial_spec(description: str) -> Dict[str, Any]:
                     "content": prompt,
                 }
             ],
-            model="llama-3.3-70b-versatile",
             temperature=0.3,
         )
         content = chat_completion.choices[0].message.content
@@ -191,9 +214,9 @@ def summarize_project_progress(commits: List[str], features: List[str]) -> Dict[
     """
 
     try:
-        chat_completion = client.chat.completions.create(
+        chat_completion = create_completion(
+            client,
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
             temperature=0.1,
             response_format={"type": "json_object"}
         )
@@ -234,12 +257,12 @@ def generate_code(item_type: str, item_name: str, spec_json: str) -> str:
     }
 
     try:
-        res = client.chat.completions.create(
+        res = create_completion(
+            client,
             messages=[
                 {"role": "system", "content": ENGINEERING_STANDARDS},
                 {"role": "user", "content": prompts.get(item_type, "Generate code for " + item_name)}
             ],
-            model="llama-3.3-70b-versatile",
             temperature=0.1
         )
         content = res.choices[0].message.content

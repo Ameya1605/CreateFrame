@@ -1,0 +1,131 @@
+{
+  "type": "ecommerce",
+  "signals": {
+    "table_names": ["product", "cart", "order", "order_item", "category", "payment", "shipping", "coupon", "wishlist", "inventory"],
+    "feature_keywords": ["product", "cart", "checkout", "order", "payment", "shipping", "catalog", "inventory", "coupon", "discount", "storefront", "shop"],
+    "route_keywords": ["product", "cart", "order", "checkout", "payment", "catalog", "wishlist"]
+  },
+  "essential_tables": [
+    {
+      "table_name": "users",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "email", "type": "string"},
+        {"name": "password_hash", "type": "string"},
+        {"name": "name", "type": "string"},
+        {"name": "phone", "type": "string"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "products",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "name", "type": "string"},
+        {"name": "description", "type": "text"},
+        {"name": "price", "type": "float"},
+        {"name": "currency", "type": "string"},
+        {"name": "stock_quantity", "type": "integer"},
+        {"name": "category_id", "type": "integer"},
+        {"name": "image_url", "type": "string"},
+        {"name": "is_active", "type": "boolean"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "categories",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "name", "type": "string"},
+        {"name": "slug", "type": "string"},
+        {"name": "parent_id", "type": "integer"}
+      ]
+    },
+    {
+      "table_name": "orders",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "user_id", "type": "integer"},
+        {"name": "status", "type": "string"},
+        {"name": "total_amount", "type": "float"},
+        {"name": "shipping_address", "type": "text"},
+        {"name": "payment_method", "type": "string"},
+        {"name": "ordered_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "order_items",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "order_id", "type": "integer"},
+        {"name": "product_id", "type": "integer"},
+        {"name": "quantity", "type": "integer"},
+        {"name": "unit_price", "type": "float"}
+      ]
+    },
+    {
+      "table_name": "cart_items",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "user_id", "type": "integer"},
+        {"name": "product_id", "type": "integer"},
+        {"name": "quantity", "type": "integer"}
+      ]
+    },
+    {
+      "table_name": "reviews",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "user_id", "type": "integer"},
+        {"name": "product_id", "type": "integer"},
+        {"name": "rating", "type": "integer"},
+        {"name": "content", "type": "text"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    }
+  ],
+  "essential_endpoints": [
+    {"method": "POST", "route": "/auth/register"},
+    {"method": "POST", "route": "/auth/login"},
+    {"method": "GET", "route": "/products"},
+    {"method": "GET", "route": "/products/:id"},
+    {"method": "GET", "route": "/products/search"},
+    {"method": "GET", "route": "/categories"},
+    {"method": "GET", "route": "/cart"},
+    {"method": "POST", "route": "/cart/items"},
+    {"method": "DELETE", "route": "/cart/items/:id"},
+    {"method": "POST", "route": "/orders"},
+    {"method": "GET", "route": "/orders"},
+    {"method": "GET", "route": "/orders/:id"},
+    {"method": "POST", "route": "/checkout"},
+    {"method": "POST", "route": "/reviews"}
+  ],
+  "essential_features": [
+    "User Authentication",
+    "Product Catalog",
+    "Search and Filtering",
+    "Shopping Cart",
+    "Checkout Flow",
+    "Order Management",
+    "Product Reviews",
+    "Admin Dashboard"
+  ],
+  "essential_ui": [
+    {"name": "Home", "type": "page"},
+    {"name": "Product List", "type": "page"},
+    {"name": "Product Detail", "type": "page"},
+    {"name": "Cart", "type": "page"},
+    {"name": "Checkout", "type": "page"},
+    {"name": "Order History", "type": "page"},
+    {"name": "Product Card", "type": "component"},
+    {"name": "Cart Drawer", "type": "component"},
+    {"name": "Search Bar", "type": "component"}
+  ],
+  "security_checklist": [
+    "Payment data never stored — use tokenized payment provider",
+    "Inventory check before order confirmation (race condition prevention)",
+    "Rate limiting on checkout and review endpoints",
+    "Input sanitization on product search queries",
+    "Order total calculated server-side (never trust client amounts)"
+  ]
+}
