@@ -50,7 +50,7 @@ async def push_spec_to_github(token: str, repo_url: str, spec_content: str):
         content_b64 = base64.b64encode(spec_content.encode()).decode()
         
         payload = {
-            "message": "Update spec.json from SpecOS",
+            "message": "Update spec.json from CreateFrame",
             "content": content_b64,
         }
         if sha:
@@ -88,7 +88,7 @@ async def get_github_commits(token: str, owner: str, repo: str):
         if response.status_code != 200: return []
         return [c["commit"]["message"] for c in response.json()]
 
-async def push_file_to_github(token: str, repo_url: str, file_path: str, content: str, message: str = "Update from SpecOS"):
+async def push_file_to_github(token: str, repo_url: str, file_path: str, content: str, message: str = "Update from CreateFrame"):
     repo_parts = repo_url.rstrip("/").split("/")
     owner = repo_parts[-2]
     repo = repo_parts[-1]

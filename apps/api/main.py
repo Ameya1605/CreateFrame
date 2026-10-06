@@ -133,12 +133,12 @@ async def initialize_full_project(req: schemas.ProjectCreate, user: models.User 
     }
     
     # Push basic structure README and spec
-    readme_content = f"# {project.name}\n\nBuilt with SpecOS - AI Architecture First.\n"
+    readme_content = f"# {project.name}\n\nBuilt with CreateFrame - AI Architecture First.\n"
     
     api_main = """from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="SpecOS Generated API")
+app = FastAPI(title="CreateFrame Generated API")
 
 app.add_middleware(
     CORSMiddleware,

@@ -31,6 +31,6 @@
 
 ## Governance & CI/CD Strategy
 - [ ] Implement "Branch Selection": Allow users to choose target branch (default: `main`)
-- [ ] Protected Branch Workflow: SpecOS pushes to `specos/proposed` to trigger PRs
-- [ ] GitHub Webhooks: Notify SpecOS backend when PRs are merged to update the spec
+- [ ] Protected Branch Workflow: CreateFrame pushes to `createframe/proposed` to trigger PRs
+- [ ] GitHub Webhooks: Notify CreateFrame backend when PRs are merged to update the spec
 - [ ] Auto-generate GitHub Actions YAML: Push `.github/workflows/ci.yml` during initialization

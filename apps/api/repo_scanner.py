@@ -218,7 +218,7 @@ def is_relevant_file(path: str) -> bool:
 async def scan_repo(token: str, repo_full_name: str) -> Dict[str, Any]:
     """
     Main entry point. Scans a GitHub repo and returns detected tables and routes.
-    repo_full_name: e.g. "tanishapritha/dpdp-audit"
+    repo_full_name: e.g. "owner/repo"
     """
     owner, repo = repo_full_name.split("/", 1)
     all_files = await fetch_repo_tree(token, owner, repo)

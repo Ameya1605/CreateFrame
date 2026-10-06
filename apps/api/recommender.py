@@ -1,5 +1,5 @@
 """
-SpecOS Recommendation Engine
+CreateFrame Recommendation Engine
 =============================
 Context-aware, cross-layer recommendation engine that understands what
 the user is building and makes specific, non-generic suggestions.

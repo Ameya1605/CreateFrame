@@ -14,7 +14,7 @@ datasource db {
 }
 """
     
-    # Simple mapping from SpecOS types to Prisma types
+    # Simple mapping from CreateFrame types to Prisma types
     type_mapping = {
         "string": "String",
         "integer": "Int",
