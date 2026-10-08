@@ -1,46 +1,84 @@
 import os
 import json
 import logging
+from types import SimpleNamespace
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
-from groq import Groq
-from typing import List, Dict, Any
+
+import models
+import auth
+from llm_client import LLMClient
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:brain: %(message)s")
 log = logging.getLogger("brain")
 
-def get_client():
-    load_dotenv()
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        return None
-    return Groq(api_key=api_key)
 
-DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
-FALLBACK_MODELS = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile"]
+class CompletionAdapter:
+    """Wraps string completion into choices[0].message.content for backward compatibility."""
+    def __init__(self, content: str):
+        self.choices = [SimpleNamespace(message=SimpleNamespace(content=content))]
+
+
+def get_client(user: Optional[models.User] = None) -> Optional[LLMClient]:
+    """
+    Returns an LLMClient configured from the user's settings or fallback environment variables.
+    """
+    if user and user.llm_provider:
+        decrypted_key = ""
+        if user.encrypted_llm_api_key:
+            try:
+                decrypted_key = auth.decrypt_token(user.encrypted_llm_api_key)
+            except Exception as e:
+                log.warning("Could not decrypt user LLM API key: %s", e)
+        client = LLMClient(
+            provider=user.llm_provider,
+            api_key=decrypted_key or None,
+            model=user.llm_model or None,
+        )
+        if client.is_configured():
+            return client
+
+    # Fallback to environment variables
+    default_client = LLMClient()
+    if default_client.is_configured():
+        return default_client
+    return None
+
 
 def create_completion(client, **kwargs):
-    model = kwargs.pop("model", DEFAULT_MODEL)
-    candidates = [model] + [m for m in FALLBACK_MODELS if m != model]
-    last_err = None
-    for m in candidates:
-        try:
-            return client.chat.completions.create(model=m, **kwargs)
-        except Exception as e:
-            last_err = e
-            err_str = str(e).lower()
-            if "model_not_found" in err_str or "does not exist" in err_str or "404" in err_str:
-                log.warning(f"Model {m} not available, trying next fallback...")
-                continue
-            raise e
-    raise last_err
+    """
+    Executes completion via LLMClient or raw client, returning CompletionAdapter with choices.
+    """
+    if isinstance(client, LLMClient):
+        messages = kwargs.get("messages", [])
+        temperature = kwargs.get("temperature", 0.1)
+        model = kwargs.get("model")
+        response_format = kwargs.get("response_format")
+        content = client.complete(
+            messages=messages,
+            temperature=temperature,
+            model=model,
+            response_format=response_format,
+        )
+        return CompletionAdapter(content)
 
-def analyze_spec_and_suggest(layer: str, current_items: List[Dict[str, Any]], project_context: str) -> List[str]:
+    if hasattr(client, "chat") and hasattr(client.chat, "completions"):
+        return client.chat.completions.create(**kwargs)
+    raise TypeError(f"Unsupported client: {type(client)}")
+
+
+def analyze_spec_and_suggest(
+    layer: str,
+    current_items: List[Dict[str, Any]],
+    project_context: str,
+    user: Optional[models.User] = None,
+) -> List[str]:
     """
-    Uses Groq to suggest improvements or missing items for a specific layer.
+    Uses LLM to suggest improvements or missing items for a specific layer.
     """
-    client = get_client()
+    client = get_client(user)
     if not client:
         return ["AI suggestions unavailable (API key missing)"]
 
@@ -74,22 +112,22 @@ def analyze_spec_and_suggest(layer: str, current_items: List[Dict[str, Any]], pr
         )
         content = chat_completion.choices[0].message.content
         log.info("[suggest] raw response: %s", content)
-        # Basic cleanup in case of markdown blocks
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-             content = content.split("```")[1].split("```")[0].strip()
-        
-        return json.loads(content)
+        return LLMClient.extract_json(content)
     except Exception as e:
         log.error("[suggest] error: %s", e)
         return [f"Could not generate suggestions: {str(e)}"]
 
-def generate_react_component(name: str, type: str, context: str) -> str:
+
+def generate_react_component(
+    name: str,
+    type: str,
+    context: str,
+    user: Optional[models.User] = None,
+) -> str:
     """
-    Generates React code for a UI component using Groq.
+    Generates React code for a UI component.
     """
-    client = get_client()
+    client = get_client(user)
     if not client:
         return "// AI Code Generation unavailable (API key missing)"
 
@@ -125,19 +163,29 @@ def generate_react_component(name: str, type: str, context: str) -> str:
         )
         content = chat_completion.choices[0].message.content
         log.info("[react-component] raw response:\n%s", content)
+        # Strip backticks if returned
         if "```" in content:
-             content = content.replace("```tsx", "").replace("```jsx", "").replace("```javascript", "").replace("```", "")
-        
+            parts = content.split("```")
+            if len(parts) >= 3:
+                content = parts[1]
+                for lang in ["tsx", "jsx", "typescript", "javascript", "react"]:
+                    if content.lower().startswith(lang):
+                        content = content[len(lang):].strip()
+                        break
         return content.strip()
     except Exception as e:
         log.error("[react-component] error: %s", e)
         return f"// Error generating code: {str(e)}"
 
-def suggest_initial_spec(description: str) -> Dict[str, Any]:
+
+def suggest_initial_spec(
+    description: str,
+    user: Optional[models.User] = None,
+) -> Dict[str, Any]:
     """
     Takes a project description and suggests features and database tables.
     """
-    client = get_client()
+    client = get_client(user)
     if not client:
         return {"features": [], "schemas": []}
 
@@ -174,24 +222,25 @@ def suggest_initial_spec(description: str) -> Dict[str, Any]:
                 }
             ],
             temperature=0.3,
+            response_format={"type": "json_object"},
         )
         content = chat_completion.choices[0].message.content
         log.info("[brainstorm] raw response:\n%s", content)
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-        
-        return json.loads(content)
+        return LLMClient.extract_json(content)
     except Exception as e:
         log.error("[brainstorm] error: %s", e)
         return {"features": [], "schemas": []}
 
-def summarize_project_progress(commits: List[str], features: List[str]) -> Dict[str, Any]:
+
+def summarize_project_progress(
+    commits: List[str],
+    features: List[str],
+    user: Optional[models.User] = None,
+) -> Dict[str, Any]:
     """
-    Analyzes commit messages against features to suggest a 'completion' status.
+    Analyzes commit messages against features to suggest completion status.
     """
-    client = get_client()
+    client = get_client(user)
     if not client:
         return {"summary": "AI unavailable", "feature_status": {}}
 
@@ -218,14 +267,15 @@ def summarize_project_progress(commits: List[str], features: List[str]) -> Dict[
             client,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
         raw = chat_completion.choices[0].message.content
         log.info("[progress] raw response:\n%s", raw)
-        return json.loads(raw)
+        return LLMClient.extract_json(raw)
     except Exception as e:
         log.error("[progress] error: %s", e)
         return {"summary": "Unable to synthesize commits.", "feature_status": {}}
+
 
 ENGINEERING_STANDARDS = """
 You are a Staff Technical Architect at a high-growth startup. Your goal is to generate 
@@ -240,12 +290,19 @@ PRODUCTION-READY, MODULAR, and HIGH-PERFORMANCE code.
 6. **No Fluff**: Do not include introductory text or markdown backticks unless specifically asked. Output CODE ONLY.
 """
 
-def generate_code(item_type: str, item_name: str, spec_json: str) -> str:
+
+def generate_code(
+    item_type: str,
+    item_name: str,
+    spec_json: str,
+    user: Optional[models.User] = None,
+) -> str:
     """
     Generates code (FastAPI, Prisma, or React) based on the item type.
     """
-    client = get_client()
-    if not client: return "// AI unavailable"
+    client = get_client(user)
+    if not client:
+        return "// AI unavailable"
 
     spec = json.loads(spec_json)
     project_context = f"Project: {spec.get('project', {}).get('name', 'App')}"
@@ -263,18 +320,16 @@ def generate_code(item_type: str, item_name: str, spec_json: str) -> str:
                 {"role": "system", "content": ENGINEERING_STANDARDS},
                 {"role": "user", "content": prompts.get(item_type, "Generate code for " + item_name)}
             ],
-            temperature=0.1
+            temperature=0.1,
         )
         content = res.choices[0].message.content
         log.info("[generate-code: %s] raw response length: %d", item_type, len(content))
-        
-        # Robust cleanup
+
+        # Robust code extraction
         if "```" in content:
-            # Extract content between backticks
             parts = content.split("```")
             if len(parts) >= 3:
                 content = parts[1]
-                # Strip language prefix if present
                 for lang in ["python", "tsx", "jsx", "javascript", "prisma", "sql", "json"]:
                     if content.lower().startswith(lang):
                         content = content[len(lang):].strip()
@@ -283,6 +338,7 @@ def generate_code(item_type: str, item_name: str, spec_json: str) -> str:
     except Exception as e:
         log.error("[generate-code] error: %s", e)
         return f"// Generation Error: {str(e)}"
+
 
 def generate_commit_message(item_type: str, item_name: str) -> str:
     """Generates professional conventional commit messages."""
@@ -293,4 +349,3 @@ def generate_commit_message(item_type: str, item_name: str) -> str:
     }
     prefix = prefixes.get(item_type, "chore")
     return f"{prefix}: bootstrap {item_name.lower()} architecture"
-

@@ -1,0 +1,39 @@
+name: "CreateFrame Drift Check"
+description: "Detects schema and route drift between code and spec.json in Pull Requests, and posts an informative review comment."
+author: "CreateFrame"
+inputs:
+  github-token:
+    description: "GitHub Token for posting comments to the PR"
+    required: true
+    default: ${{ github.token }}
+  spec-path:
+    description: "Path to spec.json relative to repository root"
+    required: false
+    default: "spec.json"
+  fail-on-drift:
+    description: "Fail the workflow if drift is detected (true/false)"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install httpx
+
+    - name: Run Drift Check
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SPEC_PATH: ${{ inputs.spec-path }}
+        FAIL_ON_DRIFT: ${{ inputs.fail-on-drift }}
+      run: |
+        python ${{ github.action_path }}/check.py

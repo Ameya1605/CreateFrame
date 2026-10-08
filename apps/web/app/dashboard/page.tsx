@@ -6,7 +6,7 @@ import {
     Plus, Github, Loader2, LogOut, Cpu, Trash2,
     Folder, FolderOpen, ChevronRight, Sparkles,
     GitBranch, Zap, Search, X, Database, Globe,
-    LayoutPanelTop, Clock
+    LayoutPanelTop, Clock, Check, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -18,12 +18,19 @@ export default function Dashboard() {
     const [projectName, setProjectName] = useState('');
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
+    const [rescanning, setRescanning] = useState(false);
     const [username, setUsername] = useState('');
     const [activeProject, setActiveProject] = useState<any>(null);
     const [sidebarSearch, setSidebarSearch] = useState('');
     const [showNewPanel, setShowNewPanel] = useState(false);
     const [generatingAll, setGeneratingAll] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+    const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+    const showToast = (msg: string, ok = true) => {
+        setToast({ msg, ok });
+        setTimeout(() => setToast(null), 3500);
+    };
 
     useEffect(() => {
         setUsername(localStorage.getItem('username') || '');
@@ -68,15 +75,30 @@ export default function Dashboard() {
                 name: projectName || selectedRepo.split('/')[1],
                 repo_url: selectedRepo
             });
+            showToast('Repository linked! Scanning architecture...');
             setProjectName('');
             setSelectedRepo('');
             setShowNewPanel(false);
             await fetchInitialData();
             router.push(`/project/${res.data.id}`);
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            showToast(err.response?.data?.detail || 'Failed to create workspace', false);
         } finally {
             setCreating(false);
+        }
+    };
+
+    const rescanRepo = async (projectId: number) => {
+        setRescanning(true);
+        try {
+            const res = await api.post('/import-from-repo', { project_id: projectId });
+            showToast(res.data?.message || 'Repository scanned successfully!');
+            await fetchInitialData();
+        } catch (err: any) {
+            showToast(err.response?.data?.detail || 'Rescan failed', false);
+        } finally {
+            setRescanning(false);
         }
     };
 
@@ -86,17 +108,20 @@ export default function Dashboard() {
             if (activeProject?.id === id) setActiveProject(null);
             setConfirmDelete(null);
             await fetchInitialData();
+            showToast('Workspace deleted');
         } catch (err) {
             console.error(err);
+            showToast('Failed to delete workspace', false);
         }
     };
 
     const generateAllCode = async (projectId: number) => {
         setGeneratingAll(true);
         try {
-            await api.post(`/projects/${projectId}/commit`);
-        } catch {
-            // handled silently
+            const res = await api.post(`/projects/${projectId}/commit`);
+            showToast(res.data?.message || 'Generated and committed to GitHub successfully!');
+        } catch (err: any) {
+            showToast(err.response?.data?.detail || 'Commit failed. Check GitHub permissions.', false);
         } finally {
             setGeneratingAll(false);
         }
@@ -328,6 +353,15 @@ export default function Dashboard() {
                                         </div>
                                         <div className="flex items-center gap-2.5">
                                             <button
+                                                onClick={() => rescanRepo(activeProject.id)}
+                                                disabled={rescanning}
+                                                className="btn-secondary text-xs flex items-center gap-1.5"
+                                                title="Rescan repository code for routes and models"
+                                            >
+                                                <RefreshCw size={12} className={rescanning ? 'animate-spin' : ''} />
+                                                <span>{rescanning ? 'Scanning...' : 'Rescan Repo'}</span>
+                                            </button>
+                                            <button
                                                 onClick={() => router.push(`/project/${activeProject.id}`)}
                                                 className="btn-secondary text-xs"
                                             >
@@ -373,8 +407,8 @@ export default function Dashboard() {
                                         <div className="grid grid-cols-3 gap-4 stagger-children">
                                             {[
                                                 { label: 'Edit Architecture', desc: 'Add features, schemas, endpoints', icon: Folder, color: 'group-hover:text-blue-400 group-hover:border-blue-500/30', action: () => router.push(`/project/${activeProject.id}`) },
+                                                { label: 'Rescan Codebase', desc: 'Auto-detect routes, models, features', icon: RefreshCw, color: 'group-hover:text-cyan-400 group-hover:border-cyan-500/30', action: () => rescanRepo(activeProject.id) },
                                                 { label: 'Generate Codebase', desc: 'AI writes all layers & commits', icon: Zap, color: 'group-hover:text-amber-400 group-hover:border-amber-500/30', action: () => generateAllCode(activeProject.id) },
-                                                { label: 'New Project', desc: 'Scaffold from scratch with AI', icon: Sparkles, color: 'group-hover:text-purple-400 group-hover:border-purple-500/30', action: () => router.push('/new-project') },
                                             ].map(({ label, desc, icon: Icon, color, action }) => (
                                                 <button
                                                     key={label}
@@ -419,6 +453,16 @@ export default function Dashboard() {
                     )}
                 </div>
             </div>
+
+            {/* Toast notification */}
+            {toast && (
+                <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl text-xs font-semibold shadow-xl z-50 flex items-center gap-2 animate-slideUp ${
+                    toast.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+                }`}>
+                    {toast.ok ? <Check size={14} /> : <AlertCircle size={14} />}
+                    <span>{toast.msg}</span>
+                </div>
+            )}
         </div>
     );
 }

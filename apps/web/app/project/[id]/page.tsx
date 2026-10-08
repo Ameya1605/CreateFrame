@@ -10,8 +10,16 @@ import {
     ChevronRight, ChevronDown, File, Folder, FolderOpen,
     Send, Trash2, Plus, Check, AlertCircle, Inbox,
     Zap, Play, GitBranch, Lightbulb, Eye, EyeOff,
-    Brain, ShieldAlert, TrendingUp, Info, Copy, CheckCheck
+    Brain, ShieldAlert, TrendingUp, Info, Copy, CheckCheck, RefreshCw,
+    MessageSquare, Award, BookOpen, Terminal, FileText
 } from 'lucide-react';
+import DriftPanel from './components/DriftPanel';
+import ERDView from './components/ERDView';
+import ArchitectureChat from './components/ArchitectureChat';
+import DesignCritique from './components/DesignCritique';
+import BuildPromptModal from './components/BuildPromptModal';
+import DocToSpecModal from './components/DocToSpecModal';
+import ADRView from './components/ADRView';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,24 +101,32 @@ function deriveFilePlan(
         featureName.toLowerCase().includes(c.name.toLowerCase())
     ) || uiComponents.find(c => c.name === featureName);
     if (relatedUI) {
+        const isTpl = relatedUI.type === 'template';
+        const isVue = relatedUI.name.toLowerCase().endsWith('.vue') || relatedUI.type === 'vue';
+        const isSvelte = relatedUI.name.toLowerCase().endsWith('.svelte') || relatedUI.type === 'svelte';
+        const ext = isTpl ? 'html' : isVue ? 'vue' : isSvelte ? 'svelte' : 'tsx';
+        const fileName = isTpl ? `${slug(relatedUI.name)}.${ext}` : `${pascal(relatedUI.name)}.${ext}`;
+        const filePath = isTpl ? `templates/${fileName}` : isVue ? `src/views/${fileName}` : `apps/web/app/${fileName}`;
         plan.push({
             type: 'ui-components',
             item: relatedUI,
-            fileName: `${pascal(relatedUI.name)}.tsx`,
-            filePath: `apps/web/app/${pascal(relatedUI.name)}.tsx`
+            fileName,
+            filePath
         });
     }
 
     // If nothing matched, create sensible defaults
     if (plan.length === 0) {
         const firstEndpoint = endpoints[0];
-        const firstUI = uiComponents.find(c => c.type === 'page') || uiComponents[0];
+        const firstUI = uiComponents.find(c => c.type === 'page' || c.type === 'template') || uiComponents[0];
         if (firstUI) {
+            const isTpl = firstUI.type === 'template';
+            const ext = isTpl ? 'html' : 'tsx';
             plan.push({
                 type: 'ui-components',
                 item: { ...firstUI, name: featureName },
-                fileName: `${pascal(featureName)}.tsx`,
-                filePath: `apps/web/app/${pascal(featureName)}.tsx`
+                fileName: isTpl ? `${slug(featureName)}.html` : `${pascal(featureName)}.tsx`,
+                filePath: isTpl ? `templates/${slug(featureName)}.html` : `apps/web/app/${pascal(featureName)}.tsx`
             });
         }
         if (firstEndpoint) {
@@ -245,9 +261,11 @@ export default function ProjectDetail() {
     const router = useRouter();
 
     const [project, setProject] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<'plan' | 'database' | 'api' | 'ui' | 'overview' | 'insights'>('plan');
+    const [activeTab, setActiveTab] = useState<'plan' | 'database' | 'api' | 'ui' | 'erd' | 'drift' | 'chat' | 'critique' | 'adrs' | 'overview' | 'insights'>('plan');
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+    const [showBuildPrompt, setShowBuildPrompt] = useState(false);
+    const [showDocToSpec, setShowDocToSpec] = useState(false);
 
     // Spec data
     const [features, setFeatures] = useState<any[]>([]);
@@ -276,6 +294,9 @@ export default function ProjectDetail() {
     const [newRoute, setNewRoute] = useState('');
     const [newRouteMethod, setNewRouteMethod] = useState('GET');
     const [newUI, setNewUI] = useState('');
+    const [newUIType, setNewUIType] = useState<'page' | 'template' | 'component' | 'layout'>('template');
+    const [newUIRoute, setNewUIRoute] = useState('');
+    const [selectedViewCode, setSelectedViewCode] = useState<{ name: string; code?: string; type: string; route?: string } | null>(null);
 
     const [genLogs, setGenLogs] = useState<string[]>([]);
 
@@ -284,9 +305,11 @@ export default function ProjectDetail() {
     const [recsLoading, setRecsLoading] = useState(false);
     const [applyingRecId, setApplyingRecId] = useState<string | null>(null);
 
+    const [rescanning, setRescanning] = useState(false);
+
     const showToast = useCallback((msg: string, ok = true) => {
         setToast({ msg, ok });
-        setTimeout(() => setToast(null), 3000);
+        setTimeout(() => setToast(null), 3500);
     }, []);
 
     useEffect(() => { fetchProjectData(); }, [id]);
@@ -308,10 +331,27 @@ export default function ProjectDetail() {
             setSchemas(schemaRes.data);
             setEndpoints(endRes.data);
             setUiComponents(uiRes.data);
+
+            if (featRes.data.length > 0 && !selectedFeature) {
+                selectFeature(featRes.data[0]);
+            }
         } catch {
             showToast('Failed to load project details', false);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRescan = async () => {
+        setRescanning(true);
+        try {
+            const res = await api.post('/import-from-repo', { project_id: Number(id) });
+            showToast(res.data?.message || 'Repository scanned successfully!');
+            await fetchProjectData();
+        } catch (err: any) {
+            showToast(err.response?.data?.detail || 'Scan failed. Check GitHub repository permissions.', false);
+        } finally {
+            setRescanning(false);
         }
     };
 
@@ -572,6 +612,25 @@ export default function ProjectDetail() {
 
                 <div className="flex items-center gap-2.5">
                     <button
+                        onClick={() => setShowDocToSpec(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20"
+                        title="Convert PRD doc or wireframe into spec"
+                    >
+                        <Sparkles size={13} className="text-purple-400" />
+                        <span>PRD to Spec</span>
+                    </button>
+
+                    <button
+                        onClick={handleRescan}
+                        disabled={rescanning}
+                        title="Rescan repository with AST parser"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border border-[var(--border-subtle)] text-zinc-300 hover:text-white hover:bg-[var(--surface-2)] disabled:opacity-50"
+                    >
+                        <RefreshCw size={13} className={rescanning ? "animate-spin text-blue-400" : "text-blue-400"} />
+                        <span>{rescanning ? 'Scanning...' : 'Rescan Repo'}</span>
+                    </button>
+
+                    <button
                         onClick={() => setShowDraftsTray(v => !v)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
                             allDraftFiles.length > 0
@@ -605,14 +664,19 @@ export default function ProjectDetail() {
                         <NavItem tabId="database" icon={Database} label="Data Models" color="text-blue-400" />
                         <NavItem tabId="api" icon={Globe} label="API Routes" color="text-purple-400" />
                         <NavItem tabId="ui" icon={LayoutPanelTop} label="UI Views" color="text-pink-400" />
+                        <NavItem tabId="erd" icon={Database} label="ERD & Exports" color="text-cyan-400" />
                     </div>
 
                     <div className="my-3 border-t border-[var(--border-subtle)]" />
 
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold px-3 mb-2">Analysis</p>
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold px-3 mb-2">Smarter AI</p>
                     <div className="space-y-1">
-                        <NavItem tabId="insights" icon={Brain} label="AI Insights" color="text-amber-400" />
-                        <NavItem tabId="overview" icon={Activity} label="Spec Overview" color="text-emerald-400" />
+                        <NavItem tabId="chat" icon={MessageSquare} label="Chat & Impact" color="text-blue-400" />
+                        <NavItem tabId="critique" icon={Award} label="Design Critique" color="text-amber-400" />
+                        <NavItem tabId="drift" icon={ShieldAlert} label="Drift & Sync" color="text-orange-400" />
+                        <NavItem tabId="adrs" icon={BookOpen} label="Decision Records" color="text-emerald-400" />
+                        <NavItem tabId="insights" icon={Brain} label="AI Insights" color="text-purple-400" />
+                        <NavItem tabId="overview" icon={Activity} label="Spec Overview" color="text-zinc-400" />
                     </div>
 
                     {recommendations && recommendations.total_count > 0 && (
@@ -669,7 +733,20 @@ export default function ProjectDetail() {
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                                {features.map((f, i) => {
+                                {features.length === 0 ? (
+                                    <div className="p-3 text-center rounded-xl bg-[var(--surface-2)]/40 border border-[var(--border-subtle)] mt-2">
+                                        <p className="text-[11px] text-zinc-400 mb-2">No features defined yet.</p>
+                                        <button
+                                            onClick={handleRescan}
+                                            disabled={rescanning}
+                                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 text-blue-400 rounded-lg text-[11px] font-semibold transition-all"
+                                        >
+                                            <Sparkles size={12} className={rescanning ? "animate-spin" : ""} />
+                                            <span>{rescanning ? 'Discovering...' : 'Auto-Discover from Repo'}</span>
+                                        </button>
+                                    </div>
+                                ) : (
+                                    features.map((f, i) => {
                                     const fImpl = implementations[f.id];
                                     const isSelected = selectedFeature?.id === f.id;
                                     return (
@@ -696,7 +773,7 @@ export default function ProjectDetail() {
                                             )}
                                         </button>
                                     );
-                                })}
+                                }))}
                             </div>
                         </div>
 
@@ -737,6 +814,15 @@ export default function ProjectDetail() {
                                         </div>
 
                                         <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => setShowBuildPrompt(true)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-2)] hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold rounded-xl border border-[var(--border-subtle)] transition-all shadow-sm"
+                                                title="Generate ready-to-paste build prompt for Cursor or Claude Code"
+                                            >
+                                                <Sparkles size={13} className="text-purple-400" />
+                                                <span>Build Prompt</span>
+                                            </button>
+
                                             {impl?.done && !impl.files.every(f => f.committed) && (
                                                 <>
                                                     <button
@@ -1082,56 +1168,205 @@ export default function ProjectDetail() {
                     </div>
                 )}
 
-                {/* ── UI COMPONENTS TAB ── */}
+                {/* ── UI COMPONENTS & VIEWS TAB ── */}
                 {activeTab === 'ui' && (
                     <div className="flex-1 overflow-auto p-8 max-w-4xl mx-auto w-full space-y-6">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                                <h2 className="text-xl font-bold text-white">UI Components & Pages</h2>
-                                <p className="text-xs text-zinc-400 mt-1">Next.js views and shared components in the frontend app.</p>
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <LayoutPanelTop size={20} className="text-pink-400" />
+                                    <span>UI Views, Templates & Components</span>
+                                </h2>
+                                <p className="text-xs text-zinc-400 mt-1">
+                                    Discovered views and templates across HTML/Jinja, Next.js, React, Vue, Svelte, and Angular.
+                                </p>
                             </div>
-                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-pink-500/10 text-pink-400 border border-pink-500/20">
-                                {uiComponents.length} components
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    {uiComponents.filter(c => c.type === 'template').length} templates
+                                </span>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                    {uiComponents.filter(c => c.type === 'page').length} pages
+                                </span>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-pink-500/10 text-pink-400 border border-pink-500/20">
+                                    {uiComponents.filter(c => c.type === 'component').length} components
+                                </span>
+                            </div>
                         </div>
 
-                        {/* Add UI Component */}
-                        <div className="flex items-center gap-2 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl px-3 py-2">
-                            <Plus size={14} className="text-zinc-400 shrink-0" />
-                            <input
-                                value={newUI}
-                                onChange={e => setNewUI(e.target.value)}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter' && newUI.trim()) {
-                                        addItem('ui-components', { name: newUI.trim(), type: 'page' });
-                                        setNewUI('');
-                                    }
-                                }}
-                                placeholder="Component name (e.g. AnalyticsDashboard, CheckoutModal)..."
-                                className="flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-500 outline-none"
-                            />
-                        </div>
-
-                        {/* Components List */}
-                        <div className="space-y-2">
-                            {uiComponents.map(c => (
-                                <div key={c.id} className="group flex items-center justify-between p-3.5 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl hover:border-zinc-700 transition-all">
-                                    <div className="flex items-center gap-3">
-                                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-pink-500/10 text-pink-400 border border-pink-500/20">
-                                            {c.type}
-                                        </span>
-                                        <span className="text-xs font-medium text-zinc-200">{c.name}</span>
-                                    </div>
-                                    <button
-                                        onClick={() => deleteItem('ui-components', c.id)}
-                                        className="text-zinc-600 hover:text-red-400 p-1 opacity-40 group-hover:opacity-100 transition-all"
-                                        title="Delete component"
+                        {/* Add UI Component / View Card */}
+                        <div className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-2xl p-4 space-y-3">
+                            <span className="text-xs font-semibold text-zinc-300">Add New View or Component</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                                <div className="sm:col-span-5 flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border-subtle)] rounded-xl px-3 py-2">
+                                    <Plus size={14} className="text-zinc-400 shrink-0" />
+                                    <input
+                                        value={newUI}
+                                        onChange={e => setNewUI(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter' && newUI.trim()) {
+                                                addItem('ui-components', {
+                                                    name: newUI.trim(),
+                                                    type: newUIType,
+                                                    route: newUIRoute.trim() || (newUIType === 'template' || newUIType === 'page' ? '/' : undefined)
+                                                });
+                                                setNewUI('');
+                                                setNewUIRoute('');
+                                            }
+                                        }}
+                                        placeholder="View or template name (e.g. Index Template, Dashboard View)..."
+                                        className="flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-500 outline-none"
+                                    />
+                                </div>
+                                <div className="sm:col-span-3">
+                                    <select
+                                        value={newUIType}
+                                        onChange={e => setNewUIType(e.target.value as any)}
+                                        className="w-full h-full bg-[var(--surface-2)] border border-[var(--border-subtle)] text-xs text-zinc-300 rounded-xl px-3 py-2 outline-none focus:border-pink-500/50"
                                     >
-                                        <Trash2 size={13} />
+                                        <option value="template">Template (HTML / Jinja)</option>
+                                        <option value="page">Page / View</option>
+                                        <option value="component">Component</option>
+                                        <option value="layout">Layout</option>
+                                    </select>
+                                </div>
+                                <div className="sm:col-span-3">
+                                    <input
+                                        value={newUIRoute}
+                                        onChange={e => setNewUIRoute(e.target.value)}
+                                        placeholder="Route (e.g. /, /predict)"
+                                        className="w-full bg-[var(--surface-2)] border border-[var(--border-subtle)] text-xs text-zinc-300 rounded-xl px-3 py-2 outline-none placeholder:text-zinc-600 focus:border-pink-500/50"
+                                    />
+                                </div>
+                                <div className="sm:col-span-1">
+                                    <button
+                                        onClick={() => {
+                                            if (!newUI.trim()) return;
+                                            addItem('ui-components', {
+                                                name: newUI.trim(),
+                                                type: newUIType,
+                                                route: newUIRoute.trim() || (newUIType === 'template' || newUIType === 'page' ? '/' : undefined)
+                                            });
+                                            setNewUI('');
+                                            setNewUIRoute('');
+                                        }}
+                                        disabled={!newUI.trim()}
+                                        className="w-full h-full flex items-center justify-center bg-pink-600 hover:bg-pink-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold py-2 transition-all"
+                                        title="Add View"
+                                    >
+                                        Add
                                     </button>
                                 </div>
-                            ))}
+                            </div>
                         </div>
+
+                        {/* Views & Components List */}
+                        <div className="space-y-2.5">
+                            {uiComponents.length === 0 ? (
+                                <div className="p-8 text-center rounded-2xl bg-[var(--surface-1)] border border-[var(--border-subtle)]">
+                                    <LayoutPanelTop size={32} className="mx-auto text-zinc-600 mb-3" />
+                                    <p className="text-sm font-semibold text-zinc-300">No UI views or templates detected</p>
+                                    <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">
+                                        Click &quot;Rescan Repo&quot; to automatically discover all HTML templates, React/Next.js pages, Vue SFCs, or add custom views above.
+                                    </p>
+                                </div>
+                            ) : (
+                                uiComponents.map(c => {
+                                    const typePill =
+                                        c.type === 'template'
+                                            ? { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', label: 'TEMPLATE' }
+                                            : c.type === 'page'
+                                            ? { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20', label: 'PAGE' }
+                                            : c.type === 'layout'
+                                            ? { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20', label: 'LAYOUT' }
+                                            : { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/20', label: 'COMPONENT' };
+
+                                    return (
+                                        <div
+                                            key={c.id}
+                                            className="group flex items-center justify-between p-3.5 bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-xl hover:border-zinc-700 transition-all"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${typePill.bg} ${typePill.text} border ${typePill.border} shrink-0`}>
+                                                    {typePill.label}
+                                                </span>
+                                                <span className="text-xs font-semibold text-zinc-200 truncate">{c.name}</span>
+                                                {c.route && (
+                                                    <span className="text-[11px] font-mono text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60 shrink-0">
+                                                        {c.route}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {c.code && (
+                                                    <button
+                                                        onClick={() => setSelectedViewCode(c)}
+                                                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 transition-all"
+                                                        title="View source code or template HTML"
+                                                    >
+                                                        <Code2 size={13} className="text-amber-400" />
+                                                        <span>View Code</span>
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => deleteItem('ui-components', c.id)}
+                                                    className="text-zinc-600 hover:text-red-400 p-1.5 opacity-40 group-hover:opacity-100 transition-all"
+                                                    title="Delete view"
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* Code Preview Drawer / Modal */}
+                        {selectedViewCode && (
+                            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="bg-[var(--surface-1)] border border-[var(--border-subtle)] rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                                    <div className="h-12 px-4 border-b border-[var(--border-subtle)] flex items-center justify-between shrink-0 bg-[var(--surface-2)]/60">
+                                        <div className="flex items-center gap-2.5">
+                                            <Code2 size={16} className="text-amber-400" />
+                                            <span className="text-sm font-bold text-white">{selectedViewCode.name}</span>
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-pink-500/10 text-pink-400 border border-pink-500/20">
+                                                {selectedViewCode.type}
+                                            </span>
+                                            {selectedViewCode.route && (
+                                                <span className="text-[11px] font-mono text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700/60">
+                                                    {selectedViewCode.route}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedViewCode.code || '');
+                                                    showToast('Source copied to clipboard!');
+                                                }}
+                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 transition-all border border-zinc-700/60"
+                                            >
+                                                <Copy size={13} />
+                                                <span>Copy</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setSelectedViewCode(null)}
+                                                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 overflow-auto p-4 bg-[var(--surface-0)] font-mono text-xs leading-relaxed text-zinc-200 select-text">
+                                        <pre className="whitespace-pre-wrap break-all">
+                                            {selectedViewCode.code || '<!-- No source code available for this view -->'}
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1309,6 +1544,41 @@ export default function ProjectDetail() {
                         </div>
                     </div>
                 )}
+
+                {/* ── ERD TAB: Auto-laid-out Diagrams & Exports ── */}
+                {activeTab === 'erd' && (
+                    <div className="flex-1 overflow-hidden h-full">
+                        <ERDView projectId={Number(id)} onShowToast={showToast} />
+                    </div>
+                )}
+
+                {/* ── DRIFT TAB: Drift Detection, 3-Way Sync & PR Governance ── */}
+                {activeTab === 'drift' && (
+                    <div className="flex-1 overflow-hidden h-full flex flex-col">
+                        <DriftPanel projectId={Number(id)} onSpecUpdated={fetchProjectData} onShowToast={showToast} />
+                    </div>
+                )}
+
+                {/* ── CHAT & IMPACT ANALYSIS TAB ── */}
+                {activeTab === 'chat' && (
+                    <div className="flex-1 overflow-hidden h-full">
+                        <ArchitectureChat projectId={Number(id)} />
+                    </div>
+                )}
+
+                {/* ── DESIGN CRITIQUE TAB ── */}
+                {activeTab === 'critique' && (
+                    <div className="flex-1 overflow-hidden h-full">
+                        <DesignCritique projectId={Number(id)} />
+                    </div>
+                )}
+
+                {/* ── ARCHITECTURAL DECISION RECORDS TAB ── */}
+                {activeTab === 'adrs' && (
+                    <div className="flex-1 overflow-hidden h-full">
+                        <ADRView projectId={Number(id)} onShowToast={showToast} />
+                    </div>
+                )}
             </div>
 
             {/* Discard Confirmation Modal */}
@@ -1391,6 +1661,26 @@ export default function ProjectDetail() {
                     <span>{toast.msg}</span>
                 </div>
             )}
+            {/* Build Prompt Modal */}
+            {selectedFeature && (
+                <BuildPromptModal
+                    projectId={Number(id)}
+                    featureId={selectedFeature.id}
+                    featureName={selectedFeature.name}
+                    isOpen={showBuildPrompt}
+                    onClose={() => setShowBuildPrompt(false)}
+                    onShowToast={showToast}
+                />
+            )}
+
+            {/* PRD & Wireframe to Spec Modal */}
+            <DocToSpecModal
+                projectId={Number(id)}
+                isOpen={showDocToSpec}
+                onClose={() => setShowDocToSpec(false)}
+                onSpecApplied={fetchProjectData}
+                onShowToast={showToast}
+            />
         </div>
     );
 }

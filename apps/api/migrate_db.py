@@ -7,9 +7,18 @@ def migrate():
     # Tables to update and columns to add
     migrations = [
         ('database_schemas', 'code', 'TEXT'),
+        ('database_schemas', 'relations', 'JSON'),
         ('api_endpoints', 'code', 'TEXT'),
+        ('api_endpoints', 'linked_table', 'TEXT'),
+        ('api_endpoints', 'auth_required', 'INTEGER DEFAULT 1'),
+        ('api_endpoints', 'auth_type', 'TEXT DEFAULT "bearer"'),
         ('ui_components', 'code', 'TEXT'),
         ('projects', 'project_type', 'TEXT'),
+        ('projects', 'database_enums', 'JSON'),
+        ('projects', 'database_relations', 'JSON'),
+        ('users', 'llm_provider', 'TEXT DEFAULT "groq"'),
+        ('users', 'llm_model', 'TEXT'),
+        ('users', 'encrypted_llm_api_key', 'TEXT'),
     ]
     
     for table, column, col_type in migrations:
