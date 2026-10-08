@@ -44,9 +44,11 @@ export default function NewProjectWizard() {
     const [loading, setLoading] = useState(false);
     const [brainstorming, setBrainstorming] = useState(false);
     const [username, setUsername] = useState('');
+    const [mounted, setMounted] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
+        setMounted(true);
         if (typeof window !== 'undefined') {
             if (!localStorage.getItem('token')) {
                 router.push('/');
@@ -136,6 +138,14 @@ export default function NewProjectWizard() {
         { id: 3, label: 'Spec Editor' },
         { id: 4, label: 'Launch' },
     ];
+
+    if (!mounted) {
+        return (
+            <div className="min-h-screen bg-[var(--surface-0)] text-zinc-100 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[var(--surface-0)] text-zinc-100 flex flex-col antialiased">

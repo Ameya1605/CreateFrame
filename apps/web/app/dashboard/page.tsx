@@ -24,6 +24,7 @@ export default function Dashboard() {
     const [sidebarSearch, setSidebarSearch] = useState('');
     const [showNewPanel, setShowNewPanel] = useState(false);
     const [generatingAll, setGeneratingAll] = useState(false);
+    const [mounted, setMounted] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
@@ -33,6 +34,7 @@ export default function Dashboard() {
     };
 
     useEffect(() => {
+        setMounted(true);
         setUsername(localStorage.getItem('username') || '');
         fetchInitialData();
     }, []);
@@ -137,6 +139,14 @@ export default function Dashboard() {
     );
 
     const repoShortName = (url: string) => url?.split('/').pop() || url;
+
+    if (!mounted) {
+        return (
+            <div className="h-screen bg-[var(--surface-0)] text-zinc-100 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+            </div>
+        );
+    }
 
     return (
         <div className="h-screen bg-[var(--surface-0)] text-zinc-100 flex flex-col overflow-hidden">

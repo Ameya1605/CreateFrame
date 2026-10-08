@@ -263,6 +263,7 @@ export default function ProjectDetail() {
     const [project, setProject] = useState<any>(null);
     const [activeTab, setActiveTab] = useState<'plan' | 'database' | 'api' | 'ui' | 'erd' | 'drift' | 'chat' | 'critique' | 'adrs' | 'overview' | 'insights'>('plan');
     const [loading, setLoading] = useState(true);
+    const [mounted, setMounted] = useState(false);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
     const [showBuildPrompt, setShowBuildPrompt] = useState(false);
     const [showDocToSpec, setShowDocToSpec] = useState(false);
@@ -310,6 +311,10 @@ export default function ProjectDetail() {
     const showToast = useCallback((msg: string, ok = true) => {
         setToast({ msg, ok });
         setTimeout(() => setToast(null), 3500);
+    }, []);
+
+    useEffect(() => {
+        setMounted(true);
     }, []);
 
     useEffect(() => { fetchProjectData(); }, [id]);
@@ -574,7 +579,7 @@ export default function ProjectDetail() {
         );
     };
 
-    if (loading) {
+    if (!mounted || loading) {
         return (
             <div className="h-screen bg-[var(--surface-0)] flex flex-col items-center justify-center gap-3">
                 <Loader2 className="animate-spin text-blue-500" size={28} />
