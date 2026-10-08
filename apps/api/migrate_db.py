@@ -16,6 +16,8 @@ def migrate():
         ('projects', 'project_type', 'TEXT'),
         ('projects', 'database_enums', 'JSON'),
         ('projects', 'database_relations', 'JSON'),
+        ('projects', 'target_branch', 'TEXT DEFAULT "main"'),
+        ('projects', 'governance_mode', 'TEXT DEFAULT "direct"'),
         ('users', 'llm_provider', 'TEXT DEFAULT "groq"'),
         ('users', 'llm_model', 'TEXT'),
         ('users', 'encrypted_llm_api_key', 'TEXT'),
