@@ -33,6 +33,10 @@ export default function ADRView({
     const [showDraftModal, setShowDraftModal] = useState(false);
 
     const loadADRs = async () => {
+        if (!projectId || isNaN(projectId)) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
             const res = await api.get(`/projects/${projectId}/adrs`);
@@ -48,7 +52,9 @@ export default function ADRView({
     };
 
     useEffect(() => {
-        loadADRs();
+        if (projectId && !isNaN(projectId)) {
+            loadADRs();
+        }
     }, [projectId]);
 
     const handleGenerate = async () => {

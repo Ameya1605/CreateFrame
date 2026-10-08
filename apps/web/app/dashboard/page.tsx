@@ -28,8 +28,16 @@ export default function Dashboard() {
     const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-    const showToast = (msg: string, ok = true) => {
-        setToast({ msg, ok });
+    const showToast = (msg: any, ok = true) => {
+        let displayMsg = 'Operation completed';
+        if (typeof msg === 'string') {
+            displayMsg = msg;
+        } else if (Array.isArray(msg)) {
+            displayMsg = msg.map(item => (typeof item === 'object' && item?.msg) ? item.msg : String(item)).join('; ');
+        } else if (typeof msg === 'object' && msg !== null) {
+            displayMsg = msg.msg || msg.message || JSON.stringify(msg);
+        }
+        setToast({ msg: displayMsg, ok });
         setTimeout(() => setToast(null), 3500);
     };
 
@@ -470,7 +478,7 @@ export default function Dashboard() {
                     toast.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
                 }`}>
                     {toast.ok ? <Check size={14} /> : <AlertCircle size={14} />}
-                    <span>{toast.msg}</span>
+                    <span>{typeof toast.msg === 'string' ? toast.msg : JSON.stringify(toast.msg)}</span>
                 </div>
             )}
         </div>

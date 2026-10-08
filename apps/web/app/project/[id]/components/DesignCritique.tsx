@@ -33,6 +33,10 @@ export default function DesignCritique({ projectId }: { projectId: number }) {
     const [refreshing, setRefreshing] = useState(false);
 
     const fetchCritique = async (isRefresh = false) => {
+        if (!projectId || isNaN(projectId)) {
+            setLoading(false);
+            return;
+        }
         if (isRefresh) setRefreshing(true);
         else setLoading(true);
 
@@ -48,7 +52,9 @@ export default function DesignCritique({ projectId }: { projectId: number }) {
     };
 
     useEffect(() => {
-        fetchCritique();
+        if (projectId && !isNaN(projectId)) {
+            fetchCritique();
+        }
     }, [projectId]);
 
     if (loading) {

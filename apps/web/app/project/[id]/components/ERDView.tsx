@@ -52,7 +52,8 @@ export default function ERDView({
                 if (mounted) setLoading(false);
             }
         };
-        if (projectId) load();
+        if (projectId && !isNaN(projectId)) load();
+        else setLoading(false);
         return () => { mounted = false; };
     }, [projectId]);
 

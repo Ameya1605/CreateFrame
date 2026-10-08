@@ -65,6 +65,10 @@ export default function DriftPanel({
     const [copiedComment, setCopiedComment] = useState(false);
 
     const loadData = async () => {
+        if (!projectId || isNaN(projectId)) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
             const [driftRes, settingsRes] = await Promise.all([
@@ -84,7 +88,8 @@ export default function DriftPanel({
     };
 
     useEffect(() => {
-        if (projectId) loadData();
+        if (projectId && !isNaN(projectId)) loadData();
+        else setLoading(false);
     }, [projectId]);
 
     const handleSyncSingle = async (item: DriftItem, action: 'accept_code' | 'delete') => {

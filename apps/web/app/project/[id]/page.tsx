@@ -260,6 +260,8 @@ export default function ProjectDetail() {
     const { id } = useParams();
     const router = useRouter();
 
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : Array.isArray(id) ? parseInt(id[0], 10) : NaN;
+
     const [project, setProject] = useState<any>(null);
     const [activeTab, setActiveTab] = useState<'plan' | 'database' | 'api' | 'ui' | 'erd' | 'drift' | 'chat' | 'critique' | 'adrs' | 'overview' | 'insights'>('plan');
     const [loading, setLoading] = useState(true);
@@ -308,8 +310,16 @@ export default function ProjectDetail() {
 
     const [rescanning, setRescanning] = useState(false);
 
-    const showToast = useCallback((msg: string, ok = true) => {
-        setToast({ msg, ok });
+    const showToast = useCallback((msg: any, ok = true) => {
+        let displayMsg = 'Operation completed';
+        if (typeof msg === 'string') {
+            displayMsg = msg;
+        } else if (Array.isArray(msg)) {
+            displayMsg = msg.map(item => (typeof item === 'object' && item?.msg) ? item.msg : String(item)).join('; ');
+        } else if (typeof msg === 'object' && msg !== null) {
+            displayMsg = msg.msg || msg.message || JSON.stringify(msg);
+        }
+        setToast({ msg: displayMsg, ok });
         setTimeout(() => setToast(null), 3500);
     }, []);
 
@@ -317,19 +327,24 @@ export default function ProjectDetail() {
         setMounted(true);
     }, []);
 
-    useEffect(() => { fetchProjectData(); }, [id]);
+    useEffect(() => {
+        if (!isNaN(numericId) && numericId > 0) {
+            fetchProjectData();
+        }
+    }, [numericId]);
 
     const fetchProjectData = async () => {
+        if (isNaN(numericId) || numericId <= 0) return;
         setLoading(true);
         try {
             const [projRes, featRes, schemaRes, endRes, uiRes] = await Promise.all([
                 api.get('/projects'),
-                api.get(`/features?project_id=${id}`),
-                api.get(`/schemas?project_id=${id}`),
-                api.get(`/endpoints?project_id=${id}`),
-                api.get(`/ui-components?project_id=${id}`),
+                api.get(`/features?project_id=${numericId}`),
+                api.get(`/schemas?project_id=${numericId}`),
+                api.get(`/endpoints?project_id=${numericId}`),
+                api.get(`/ui-components?project_id=${numericId}`),
             ]);
-            const p = projRes.data.find((x: any) => x.id === Number(id));
+            const p = projRes.data.find((x: any) => x.id === numericId);
             if (!p) { router.push('/dashboard'); return; }
             setProject(p);
             setFeatures(featRes.data);
@@ -340,21 +355,28 @@ export default function ProjectDetail() {
             if (featRes.data.length > 0 && !selectedFeature) {
                 selectFeature(featRes.data[0]);
             }
-        } catch {
-            showToast('Failed to load project details', false);
+        } catch (err: any) {
+            console.error("fetchProjectData error:", err);
+            if (err?.response?.status === 401) {
+                localStorage.clear();
+                router.push('/');
+                return;
+            }
+            showToast(err?.response?.data?.detail || 'Failed to load project details', false);
         } finally {
             setLoading(false);
         }
     };
 
     const handleRescan = async () => {
+        if (isNaN(numericId) || numericId <= 0) return;
         setRescanning(true);
         try {
-            const res = await api.post('/import-from-repo', { project_id: Number(id) });
+            const res = await api.post('/import-from-repo', { project_id: numericId });
             showToast(res.data?.message || 'Repository scanned successfully!');
             await fetchProjectData();
         } catch (err: any) {
-            showToast(err.response?.data?.detail || 'Scan failed. Check GitHub repository permissions.', false);
+            showToast(err?.response?.data?.detail || 'Scan failed. Check GitHub repository permissions.', false);
         } finally {
             setRescanning(false);
         }
@@ -362,10 +384,10 @@ export default function ProjectDetail() {
 
     // Recommendations
     const loadRecommendations = async () => {
-        if (!id) return;
+        if (isNaN(numericId) || numericId <= 0) return;
         setRecsLoading(true);
         try {
-            const data = await fetchRecommendations(Number(id));
+            const data = await fetchRecommendations(numericId);
             setRecommendations(data);
         } catch {
             // non-critical
@@ -379,9 +401,10 @@ export default function ProjectDetail() {
     }, [loading, project?.id]);
 
     const handleApplyRec = async (recId: string) => {
+        if (isNaN(numericId) || numericId <= 0) return;
         setApplyingRecId(recId);
         try {
-            await applyRecommendation(Number(id), recId);
+            await applyRecommendation(numericId, recId);
             showToast('Recommendation applied successfully!');
             await fetchProjectData();
         } catch {
@@ -392,8 +415,9 @@ export default function ProjectDetail() {
     };
 
     const handleDismissRec = async (recId: string) => {
+        if (isNaN(numericId) || numericId <= 0) return;
         try {
-            await dismissRecommendation(Number(id), recId);
+            await dismissRecommendation(numericId, recId);
             await loadRecommendations();
             showToast('Recommendation dismissed');
         } catch {
@@ -579,7 +603,7 @@ export default function ProjectDetail() {
         );
     };
 
-    if (!mounted || loading) {
+    if (!mounted || loading || isNaN(numericId)) {
         return (
             <div className="h-screen bg-[var(--surface-0)] flex flex-col items-center justify-center gap-3">
                 <Loader2 className="animate-spin text-blue-500" size={28} />
@@ -1553,35 +1577,35 @@ export default function ProjectDetail() {
                 {/* ── ERD TAB: Auto-laid-out Diagrams & Exports ── */}
                 {activeTab === 'erd' && (
                     <div className="flex-1 overflow-hidden h-full">
-                        <ERDView projectId={Number(id)} onShowToast={showToast} />
+                        <ERDView projectId={numericId} onShowToast={showToast} />
                     </div>
                 )}
 
                 {/* ── DRIFT TAB: Drift Detection, 3-Way Sync & PR Governance ── */}
                 {activeTab === 'drift' && (
                     <div className="flex-1 overflow-hidden h-full flex flex-col">
-                        <DriftPanel projectId={Number(id)} onSpecUpdated={fetchProjectData} onShowToast={showToast} />
+                        <DriftPanel projectId={numericId} onSpecUpdated={fetchProjectData} onShowToast={showToast} />
                     </div>
                 )}
 
                 {/* ── CHAT & IMPACT ANALYSIS TAB ── */}
                 {activeTab === 'chat' && (
                     <div className="flex-1 overflow-hidden h-full">
-                        <ArchitectureChat projectId={Number(id)} />
+                        <ArchitectureChat projectId={numericId} />
                     </div>
                 )}
 
                 {/* ── DESIGN CRITIQUE TAB ── */}
                 {activeTab === 'critique' && (
                     <div className="flex-1 overflow-hidden h-full">
-                        <DesignCritique projectId={Number(id)} />
+                        <DesignCritique projectId={numericId} />
                     </div>
                 )}
 
                 {/* ── ARCHITECTURAL DECISION RECORDS TAB ── */}
                 {activeTab === 'adrs' && (
                     <div className="flex-1 overflow-hidden h-full">
-                        <ADRView projectId={Number(id)} onShowToast={showToast} />
+                        <ADRView projectId={numericId} onShowToast={showToast} />
                     </div>
                 )}
             </div>
@@ -1663,13 +1687,13 @@ export default function ProjectDetail() {
                     toast.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
                 }`}>
                     {toast.ok ? <Check size={14} /> : <AlertCircle size={14} />}
-                    <span>{toast.msg}</span>
+                    <span>{typeof toast.msg === 'string' ? toast.msg : JSON.stringify(toast.msg)}</span>
                 </div>
             )}
             {/* Build Prompt Modal */}
             {selectedFeature && (
                 <BuildPromptModal
-                    projectId={Number(id)}
+                    projectId={numericId}
                     featureId={selectedFeature.id}
                     featureName={selectedFeature.name}
                     isOpen={showBuildPrompt}
@@ -1680,7 +1704,7 @@ export default function ProjectDetail() {
 
             {/* PRD & Wireframe to Spec Modal */}
             <DocToSpecModal
-                projectId={Number(id)}
+                projectId={numericId}
                 isOpen={showDocToSpec}
                 onClose={() => setShowDocToSpec(false)}
                 onSpecApplied={fetchProjectData}
