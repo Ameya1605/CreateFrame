@@ -1,7 +1,7 @@
 import re
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 
 import brain
@@ -1239,15 +1239,32 @@ def generate_adr(
     added_eps = [e for e in curr_eps if e not in prev_eps]
     removed_eps = [e for e in prev_eps if e not in curr_eps]
 
-    title = title or (
-        f"Adopt {added_tables[0]} Architecture" if added_tables else
-        f"Extend API with {len(added_eps)} endpoints" if added_eps else
-        "Update Application Architecture"
-    )
+    if not title:
+        if added_tables:
+            title = f"Introduce {added_tables[0]} Entity & Storage Schema"
+        elif added_eps:
+            prefixes = set()
+            for ep in added_eps:
+                parts = ep.split()
+                if len(parts) > 1:
+                    segments = [s for s in parts[1].strip("/").split("/") if s and s not in ("api", "v1", "v2")]
+                    if segments:
+                        prefixes.add(segments[0].replace("_", " ").title())
+            domain = " & ".join(sorted(prefixes)[:2]) if prefixes else "Core Service"
+            title = f"Establish {domain} Endpoints Contract"
+        else:
+            title = "Update System Architecture Contract"
 
     slug_title = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
     file_path = f"docs/adr/{adr_number:04d}-{slug_title}.md"
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    def format_bullet_list(items: list) -> str:
+        if not items:
+            return "None"
+        if len(items) <= 3:
+            return ", ".join(f"`{it}`" for it in items)
+        return "\n" + "\n".join(f"  - `{it}`" for it in items)
 
     content = f"""# {adr_number:04d}. {title}
 
@@ -1260,27 +1277,27 @@ Accepted
 {context_note or "Architecture specification was updated in CreateFrame / SpecOS to support new functional requirements."}
 
 ### Changes Detected:
-- **Added Tables**: {', '.join(added_tables) if added_tables else 'None'}
-- **Removed Tables**: {', '.join(removed_tables) if removed_tables else 'None'}
-- **Added Routes**: {', '.join(added_eps) if added_eps else 'None'}
-- **Removed Routes**: {', '.join(removed_eps) if removed_eps else 'None'}
+- **Added Tables**: {format_bullet_list(added_tables)}
+- **Removed Tables**: {format_bullet_list(removed_tables)}
+- **Added Routes** ({len(added_eps)}): {format_bullet_list(added_eps)}
+- **Removed Routes**: {format_bullet_list(removed_eps)}
 
 ## Decision Drivers
-- High-cohesion domain modeling
+- High-cohesion domain modeling and bounded contexts
 - Strict separation between presentation, API transport, and persistence layers
-- Contract-first API development ensuring client predictability
+- Contract-first API development ensuring client predictability and schema validation
 
 ## Decision
 We establish and validate the updated architectural contract:
-1. Persist domain state using the declared data models.
+1. Persist domain state using the declared data models and relational constraints.
 2. Route external traffic through declared REST endpoints with authentication boundaries.
-3. Synchronize frontend components against the canonical specification.
+3. Synchronize frontend components and API client types against the canonical specification.
 
 ## Consequences
 ### Positive
 - Guaranteed schema consistency between backend routers and client types.
-- Traceable impact analysis for future migrations.
-- Complete documentation generated directly from running code.
+- Traceable impact analysis and blast-radius visibility for future migrations.
+- Complete documentation generated directly from running architecture code.
 
 ### Negative
 - Requires maintaining specification synchronization during rapid prototyping phases.
