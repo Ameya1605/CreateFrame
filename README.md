@@ -1,15 +1,8 @@
----
-title: Create Frame
-emoji: 📐
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
----
+
 
 <div align="center">
 
-# 📐 CreateFrame (SpecOS)
+# 📐 CreateFrame 
 
 **The Technical Control Plane for Modern Software Builders**  
 *Architect before you code. Maintain living specifications, detect schema drift, and sync directly with GitHub.*
