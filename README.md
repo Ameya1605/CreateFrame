@@ -7,7 +7,7 @@
 **The Technical Control Plane for Modern Software Builders**  
 *Architect before you code. Maintain living specifications, detect schema drift, and sync directly with GitHub.*
 
-[![SpecOS CI](https://github.com/Ameya1605/CreateFrame/actions/workflows/ci.yml/badge.svg)](https://github.com/Ameya1605/CreateFrame/actions/workflows/ci.yml)
+
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI_0.115-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js_15-black.svg?logo=next.js&logoColor=white)](https://nextjs.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
