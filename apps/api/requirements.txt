@@ -10,5 +10,6 @@ python-multipart
 httpx
 python-dotenv
 cryptography
-cors
 groq
+pytest
+pytest-asyncio

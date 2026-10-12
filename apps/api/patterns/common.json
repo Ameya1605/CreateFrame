@@ -1,0 +1,142 @@
+{
+  "universal_fields": {
+    "_always": [
+      {"name": "id", "type": "integer"},
+      {"name": "created_at", "type": "datetime"},
+      {"name": "updated_at", "type": "datetime"}
+    ]
+  },
+  "field_recommendations": {
+    "user": [
+      {"name": "email", "type": "string"},
+      {"name": "password_hash", "type": "string"},
+      {"name": "role", "type": "string"},
+      {"name": "avatar_url", "type": "string"},
+      {"name": "is_active", "type": "boolean"},
+      {"name": "last_login_at", "type": "datetime"}
+    ],
+    "account": [
+      {"name": "email", "type": "string"},
+      {"name": "password_hash", "type": "string"},
+      {"name": "role", "type": "string"},
+      {"name": "is_verified", "type": "boolean"}
+    ],
+    "product": [
+      {"name": "name", "type": "string"},
+      {"name": "description", "type": "text"},
+      {"name": "price", "type": "float"},
+      {"name": "currency", "type": "string"},
+      {"name": "stock_quantity", "type": "integer"},
+      {"name": "image_url", "type": "string"},
+      {"name": "is_active", "type": "boolean"}
+    ],
+    "item": [
+      {"name": "name", "type": "string"},
+      {"name": "description", "type": "text"},
+      {"name": "price", "type": "float"},
+      {"name": "quantity", "type": "integer"},
+      {"name": "image_url", "type": "string"}
+    ],
+    "order": [
+      {"name": "user_id", "type": "integer"},
+      {"name": "total_amount", "type": "float"},
+      {"name": "status", "type": "string"},
+      {"name": "payment_method", "type": "string"},
+      {"name": "shipping_address", "type": "text"},
+      {"name": "ordered_at", "type": "datetime"}
+    ],
+    "purchase": [
+      {"name": "user_id", "type": "integer"},
+      {"name": "total_amount", "type": "float"},
+      {"name": "status", "type": "string"},
+      {"name": "payment_method", "type": "string"}
+    ],
+    "post": [
+      {"name": "title", "type": "string"},
+      {"name": "body", "type": "text"},
+      {"name": "author_id", "type": "integer"},
+      {"name": "published_at", "type": "datetime"},
+      {"name": "slug", "type": "string"},
+      {"name": "is_published", "type": "boolean"}
+    ],
+    "article": [
+      {"name": "title", "type": "string"},
+      {"name": "body", "type": "text"},
+      {"name": "author_id", "type": "integer"},
+      {"name": "published_at", "type": "datetime"},
+      {"name": "slug", "type": "string"},
+      {"name": "category", "type": "string"}
+    ],
+    "comment": [
+      {"name": "user_id", "type": "integer"},
+      {"name": "parent_id", "type": "integer"},
+      {"name": "content", "type": "text"},
+      {"name": "is_edited", "type": "boolean"}
+    ],
+    "review": [
+      {"name": "user_id", "type": "integer"},
+      {"name": "content", "type": "text"},
+      {"name": "rating", "type": "integer"},
+      {"name": "is_verified", "type": "boolean"}
+    ],
+    "category": [
+      {"name": "name", "type": "string"},
+      {"name": "slug", "type": "string"},
+      {"name": "description", "type": "text"},
+      {"name": "parent_id", "type": "integer"}
+    ],
+    "tag": [
+      {"name": "name", "type": "string"},
+      {"name": "slug", "type": "string"}
+    ],
+    "notification": [
+      {"name": "user_id", "type": "integer"},
+      {"name": "title", "type": "string"},
+      {"name": "message", "type": "text"},
+      {"name": "is_read", "type": "boolean"},
+      {"name": "type", "type": "string"}
+    ],
+    "setting": [
+      {"name": "user_id", "type": "integer"},
+      {"name": "key", "type": "string"},
+      {"name": "value", "type": "text"}
+    ],
+    "file": [
+      {"name": "name", "type": "string"},
+      {"name": "url", "type": "string"},
+      {"name": "mime_type", "type": "string"},
+      {"name": "size_bytes", "type": "integer"},
+      {"name": "uploaded_by", "type": "integer"}
+    ],
+    "payment": [
+      {"name": "user_id", "type": "integer"},
+      {"name": "amount", "type": "float"},
+      {"name": "currency", "type": "string"},
+      {"name": "status", "type": "string"},
+      {"name": "provider", "type": "string"},
+      {"name": "external_id", "type": "string"}
+    ],
+    "invitation": [
+      {"name": "email", "type": "string"},
+      {"name": "invited_by", "type": "integer"},
+      {"name": "role", "type": "string"},
+      {"name": "token", "type": "string"},
+      {"name": "accepted_at", "type": "datetime"},
+      {"name": "expires_at", "type": "datetime"}
+    ],
+    "log": [
+      {"name": "user_id", "type": "integer"},
+      {"name": "action", "type": "string"},
+      {"name": "resource_type", "type": "string"},
+      {"name": "resource_id", "type": "integer"},
+      {"name": "metadata", "type": "json"}
+    ]
+  },
+  "security_checklist": [
+    "Rate limiting on authentication endpoints",
+    "Password hashing (bcrypt/argon2, never plaintext)",
+    "Input validation and sanitization on all endpoints",
+    "CORS configuration restricted to known origins in production",
+    "Environment variables for all secrets (no hardcoded keys)"
+  ]
+}

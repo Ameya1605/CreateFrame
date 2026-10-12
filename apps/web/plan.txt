@@ -19,5 +19,5 @@
 
 ## Automation & Workflow
 - [ ] Connect/Disconnect branch monitor
-- [ ] PR Status widget: Show if a `specos/proposed` PR is currently open on GitHub
+- [ ] PR Status widget: Show if a `createframe/proposed` PR is currently open on GitHub
 - [ ] Deployment URL display: Link to the environment if CD is active

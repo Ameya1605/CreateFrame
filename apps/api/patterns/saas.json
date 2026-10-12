@@ -1,0 +1,110 @@
+{
+  "type": "saas",
+  "signals": {
+    "table_names": ["subscription", "plan", "invoice", "billing", "tenant", "organization", "team", "workspace", "member"],
+    "feature_keywords": ["subscription", "billing", "plan", "tenant", "multi-tenant", "team", "workspace", "pricing", "trial", "onboarding"],
+    "route_keywords": ["billing", "subscribe", "plan", "checkout", "stripe", "webhook"]
+  },
+  "essential_tables": [
+    {
+      "table_name": "users",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "email", "type": "string"},
+        {"name": "password_hash", "type": "string"},
+        {"name": "role", "type": "string"},
+        {"name": "is_active", "type": "boolean"},
+        {"name": "created_at", "type": "datetime"},
+        {"name": "updated_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "organizations",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "name", "type": "string"},
+        {"name": "slug", "type": "string"},
+        {"name": "owner_id", "type": "integer"},
+        {"name": "plan_id", "type": "integer"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "plans",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "name", "type": "string"},
+        {"name": "price_monthly", "type": "float"},
+        {"name": "price_yearly", "type": "float"},
+        {"name": "features", "type": "json"},
+        {"name": "is_active", "type": "boolean"}
+      ]
+    },
+    {
+      "table_name": "subscriptions",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "organization_id", "type": "integer"},
+        {"name": "plan_id", "type": "integer"},
+        {"name": "status", "type": "string"},
+        {"name": "current_period_start", "type": "datetime"},
+        {"name": "current_period_end", "type": "datetime"},
+        {"name": "external_id", "type": "string"}
+      ]
+    },
+    {
+      "table_name": "invitations",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "email", "type": "string"},
+        {"name": "organization_id", "type": "integer"},
+        {"name": "invited_by", "type": "integer"},
+        {"name": "role", "type": "string"},
+        {"name": "token", "type": "string"},
+        {"name": "accepted_at", "type": "datetime"}
+      ]
+    }
+  ],
+  "essential_endpoints": [
+    {"method": "POST", "route": "/auth/register"},
+    {"method": "POST", "route": "/auth/login"},
+    {"method": "POST", "route": "/auth/refresh"},
+    {"method": "GET", "route": "/users/me"},
+    {"method": "PUT", "route": "/users/me"},
+    {"method": "GET", "route": "/organizations"},
+    {"method": "POST", "route": "/organizations"},
+    {"method": "POST", "route": "/organizations/:id/invite"},
+    {"method": "GET", "route": "/plans"},
+    {"method": "POST", "route": "/billing/checkout"},
+    {"method": "POST", "route": "/billing/webhook"},
+    {"method": "GET", "route": "/subscriptions/current"}
+  ],
+  "essential_features": [
+    "User Authentication",
+    "Organization / Team Management",
+    "Subscription Billing",
+    "Role-Based Access Control",
+    "Settings and Profile",
+    "Dashboard Analytics",
+    "Invite and Onboarding Flow",
+    "Notification System"
+  ],
+  "essential_ui": [
+    {"name": "Login", "type": "page"},
+    {"name": "Register", "type": "page"},
+    {"name": "Dashboard", "type": "page"},
+    {"name": "Settings", "type": "page"},
+    {"name": "Billing", "type": "page"},
+    {"name": "Team Members", "type": "page"},
+    {"name": "Sidebar", "type": "layout"},
+    {"name": "Navbar", "type": "component"}
+  ],
+  "security_checklist": [
+    "JWT refresh token rotation with HttpOnly cookies",
+    "RBAC middleware on all protected routes",
+    "Rate limiting on auth and billing endpoints",
+    "Webhook signature verification for payment events",
+    "Tenant isolation — queries must scope to organization_id",
+    "Invitation token expiry (24-48 hours)"
+  ]
+}

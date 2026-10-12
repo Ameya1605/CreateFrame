@@ -7,8 +7,20 @@ def migrate():
     # Tables to update and columns to add
     migrations = [
         ('database_schemas', 'code', 'TEXT'),
+        ('database_schemas', 'relations', 'JSON'),
         ('api_endpoints', 'code', 'TEXT'),
-        ('ui_components', 'code', 'TEXT')
+        ('api_endpoints', 'linked_table', 'TEXT'),
+        ('api_endpoints', 'auth_required', 'INTEGER DEFAULT 1'),
+        ('api_endpoints', 'auth_type', 'TEXT DEFAULT "bearer"'),
+        ('ui_components', 'code', 'TEXT'),
+        ('projects', 'project_type', 'TEXT'),
+        ('projects', 'database_enums', 'JSON'),
+        ('projects', 'database_relations', 'JSON'),
+        ('projects', 'target_branch', 'TEXT DEFAULT "main"'),
+        ('projects', 'governance_mode', 'TEXT DEFAULT "direct"'),
+        ('users', 'llm_provider', 'TEXT DEFAULT "groq"'),
+        ('users', 'llm_model', 'TEXT'),
+        ('users', 'encrypted_llm_api_key', 'TEXT'),
     ]
     
     for table, column, col_type in migrations:
@@ -21,6 +33,23 @@ def migrate():
                 print(f"Column '{column}' already exists in '{table}'. skipping.")
             else:
                 print(f"Error adding column to {table}: {e}")
+    
+    # Create new tables
+    try:
+        print("Creating 'dismissed_recommendations' table...")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dismissed_recommendations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                recommendation_id TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects(id),
+                UNIQUE(project_id, recommendation_id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS ix_dismissed_rec_id ON dismissed_recommendations(recommendation_id)")
+        print("Done.")
+    except Exception as e:
+        print(f"Error creating dismissed_recommendations: {e}")
     
     conn.commit()
     conn.close()

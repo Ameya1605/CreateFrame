@@ -1,0 +1,140 @@
+{
+  "type": "social",
+  "signals": {
+    "table_names": ["post", "comment", "follower", "following", "like", "feed", "message", "conversation", "friend", "profile", "media", "story"],
+    "feature_keywords": ["social", "post", "feed", "follow", "like", "comment", "share", "message", "chat", "friend", "profile", "timeline", "story", "community"],
+    "route_keywords": ["feed", "post", "follow", "like", "comment", "message", "profile", "timeline"]
+  },
+  "essential_tables": [
+    {
+      "table_name": "users",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "email", "type": "string"},
+        {"name": "username", "type": "string"},
+        {"name": "password_hash", "type": "string"},
+        {"name": "display_name", "type": "string"},
+        {"name": "avatar_url", "type": "string"},
+        {"name": "bio", "type": "text"},
+        {"name": "is_verified", "type": "boolean"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "posts",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "author_id", "type": "integer"},
+        {"name": "content", "type": "text"},
+        {"name": "media_url", "type": "string"},
+        {"name": "likes_count", "type": "integer"},
+        {"name": "comments_count", "type": "integer"},
+        {"name": "is_published", "type": "boolean"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "comments",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "post_id", "type": "integer"},
+        {"name": "author_id", "type": "integer"},
+        {"name": "content", "type": "text"},
+        {"name": "parent_id", "type": "integer"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "follows",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "follower_id", "type": "integer"},
+        {"name": "following_id", "type": "integer"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "likes",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "user_id", "type": "integer"},
+        {"name": "post_id", "type": "integer"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "messages",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "sender_id", "type": "integer"},
+        {"name": "receiver_id", "type": "integer"},
+        {"name": "content", "type": "text"},
+        {"name": "is_read", "type": "boolean"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    },
+    {
+      "table_name": "notifications",
+      "fields": [
+        {"name": "id", "type": "integer"},
+        {"name": "user_id", "type": "integer"},
+        {"name": "type", "type": "string"},
+        {"name": "actor_id", "type": "integer"},
+        {"name": "target_id", "type": "integer"},
+        {"name": "message", "type": "text"},
+        {"name": "is_read", "type": "boolean"},
+        {"name": "created_at", "type": "datetime"}
+      ]
+    }
+  ],
+  "essential_endpoints": [
+    {"method": "POST", "route": "/auth/register"},
+    {"method": "POST", "route": "/auth/login"},
+    {"method": "GET", "route": "/users/:id/profile"},
+    {"method": "PUT", "route": "/users/me"},
+    {"method": "GET", "route": "/feed"},
+    {"method": "POST", "route": "/posts"},
+    {"method": "GET", "route": "/posts/:id"},
+    {"method": "DELETE", "route": "/posts/:id"},
+    {"method": "POST", "route": "/posts/:id/like"},
+    {"method": "POST", "route": "/posts/:id/comments"},
+    {"method": "GET", "route": "/posts/:id/comments"},
+    {"method": "POST", "route": "/users/:id/follow"},
+    {"method": "DELETE", "route": "/users/:id/follow"},
+    {"method": "GET", "route": "/users/:id/followers"},
+    {"method": "GET", "route": "/users/:id/following"},
+    {"method": "GET", "route": "/notifications"},
+    {"method": "GET", "route": "/messages"},
+    {"method": "POST", "route": "/messages"}
+  ],
+  "essential_features": [
+    "User Authentication",
+    "User Profiles",
+    "News Feed",
+    "Post Creation",
+    "Likes and Comments",
+    "Follow System",
+    "Direct Messaging",
+    "Notifications",
+    "Search and Discovery"
+  ],
+  "essential_ui": [
+    {"name": "Feed", "type": "page"},
+    {"name": "Profile", "type": "page"},
+    {"name": "Post Detail", "type": "page"},
+    {"name": "Messages", "type": "page"},
+    {"name": "Notifications", "type": "page"},
+    {"name": "Search", "type": "page"},
+    {"name": "Post Card", "type": "component"},
+    {"name": "Comment Thread", "type": "component"},
+    {"name": "User Avatar", "type": "component"}
+  ],
+  "security_checklist": [
+    "Content moderation pipeline for user-generated content",
+    "Rate limiting on post creation and messaging",
+    "Privacy controls — public vs private profiles",
+    "Block/report functionality",
+    "Media upload validation (file type, size limits)",
+    "Pagination on feed and comment endpoints to prevent abuse"
+  ]
+}
