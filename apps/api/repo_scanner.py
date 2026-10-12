@@ -840,6 +840,7 @@ def parse_nestjs_controllers(content: str) -> List[Dict]:
 def parse_express_routes(content: str) -> List[Dict]:
     """Extract routes from Express.js files."""
     routes = []
+    # Use * to allow empty strings in routes, e.g. app.get('')
     route_pattern = re.compile(
         r'(?:router|app)\.(get|post|put|delete|patch|use)\s*\(\s*["\']([^"\']*)["\']',
         re.MULTILINE | re.IGNORECASE

@@ -307,6 +307,9 @@ def generate_code(
     spec = json.loads(spec_json)
     project_context = f"Project: {spec.get('project', {}).get('name', 'App')}"
 
+    spec = json.loads(spec_json)
+    project_context = f"Project: {spec.get('project', {}).get('name', 'App')}"
+
     prompts = {
         "schemas": f"Generate a clean, modular Prisma model for '{item_name}'. Context: {project_context}. Relationships: Ensure it links correctly to other models in the spec: {spec_json}. Output raw prisma model only.",
         "endpoints": f"Generate a modular FastAPI router for '{item_name}'. Standard: Pydantic v2, clear separation from main app. Logic: Implement common CRUD operations as comments. Context: {spec_json}. Output raw python only.",
